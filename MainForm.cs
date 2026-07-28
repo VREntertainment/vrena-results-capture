@@ -1,10 +1,13 @@
 using System.Diagnostics;
 using System.Drawing.Imaging;
+using System.Runtime.InteropServices;
 
 namespace VRenaResultsCapture;
 
 internal sealed class MainForm : Form
 {
+    private const uint WindowDisplayAffinityExcludeFromCapture = 0x00000011;
+
     private readonly CaptureSettings _settings;
     private readonly ComboBox _monitorSelector = new();
     private readonly TextBox _captureDirectory = new();
@@ -18,6 +21,7 @@ internal sealed class MainForm : Form
     private readonly CheckBox _syncEnabled = new();
     private readonly TextBox _webAppUrl = new();
     private readonly TextBox _ingestToken = new();
+    private readonly Icon _applicationIcon = LoadApplicationIcon();
     private readonly NotifyIcon _trayIcon = new();
     private MonitorEngine? _engine;
     private bool _allowClose;
@@ -28,6 +32,7 @@ internal sealed class MainForm : Form
         _settings = settings ?? SettingsStore.Load();
         DiagnosticLog.Initialize(_settings.CaptureDirectory);
         Text = AppPaths.ProductName;
+        Icon = _applicationIcon;
         StartPosition = FormStartPosition.CenterScreen;
         MinimumSize = new Size(780, 760);
         Size = new Size(860, 820);
@@ -421,7 +426,7 @@ internal sealed class MainForm : Form
         });
 
         _trayIcon.Text = AppPaths.ProductName;
-        _trayIcon.Icon = SystemIcons.Application;
+        _trayIcon.Icon = _applicationIcon;
         _trayIcon.Visible = true;
         _trayIcon.ContextMenuStrip = menu;
         _trayIcon.DoubleClick += (_, _) => ShowFromTray();
@@ -991,12 +996,47 @@ internal sealed class MainForm : Form
     private Screen? GetSelectedScreen() =>
         (_monitorSelector.SelectedItem as ScreenChoice)?.Screen ?? Screen.PrimaryScreen;
 
+    private static Icon LoadApplicationIcon()
+    {
+        var path = Environment.ProcessPath;
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            var embedded = Icon.ExtractAssociatedIcon(path);
+            if (embedded is not null)
+            {
+                return embedded;
+            }
+        }
+
+        return (Icon)SystemIcons.Application.Clone();
+    }
+
+    protected override void OnHandleCreated(EventArgs eventArgs)
+    {
+        base.OnHandleCreated(eventArgs);
+        if (!SetWindowDisplayAffinity(Handle, WindowDisplayAffinityExcludeFromCapture))
+        {
+            DiagnosticLog.Warning(
+                "The application window could not be excluded from screenshots. " +
+                $"WindowsError={Marshal.GetLastWin32Error()}");
+        }
+        else
+        {
+            DiagnosticLog.Info("Application window excluded from result screenshots.");
+        }
+    }
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetWindowDisplayAffinity(IntPtr windowHandle, uint affinity);
+
     protected override void Dispose(bool disposing)
     {
         if (disposing)
         {
             _engine?.Dispose();
             _trayIcon.Dispose();
+            _applicationIcon.Dispose();
         }
 
         base.Dispose(disposing);

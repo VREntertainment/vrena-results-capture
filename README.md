@@ -31,11 +31,11 @@ The screenshot itself is never uploaded. Only the recognized game, exact player 
 
 Keep the VR server window in the same position and at the same display resolution. Reconfigure recognition if either changes.
 
-Version 2.1.0 reads the header, both player tables, and the bottom-left game label in separate enlarged OCR passes. This is designed for the venue server's 3840 × 2160 results display, where a single full-screen OCR pass can miss the smaller game and player statistics.
+Version 2.1.1 reads the header, both player tables, and the bottom-left game label in separate enlarged OCR passes. This is designed for the venue server's 3840 × 2160 results display, where a single full-screen OCR pass can miss the smaller game and player statistics.
 
 ## Online updates
 
-Version 2.1.0 is the last version that needs a normal manual installation. Future versions are checked automatically through the configured web app. Choose **Check for updates** at any time, or accept the update prompt after startup. The application downloads the release over HTTPS, verifies its SHA-256 fingerprint, replaces only the installed executable, and restarts. Settings, screenshots, local result history, pending synchronization, and logs are preserved.
+Version 2.1.1 is the last version that needs a normal manual installation. Future versions are checked automatically through the configured web app. Choose **Check for updates** at any time, or accept the update prompt after startup. The application downloads the release over HTTPS, verifies its SHA-256 fingerprint, replaces only the installed executable, and restarts. Settings, screenshots, local result history, pending synchronization, and logs are preserved.
 
 ## Saved files
 

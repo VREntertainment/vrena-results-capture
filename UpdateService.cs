@@ -28,17 +28,21 @@ internal static class UpdateService
 
         var manifest = await response.Content.ReadFromJsonAsync<UpdateManifest>()
             ?? throw new InvalidOperationException("The update information is invalid.");
-        if (!Version.TryParse(manifest.Version, out var availableVersion) ||
-            !Version.TryParse(Application.ProductVersion, out var currentVersion) ||
-            !Uri.TryCreate(manifest.DownloadUrl, UriKind.Absolute, out var downloadUri) ||
+        var availableVersion = ParseVersion(manifest.Version, "available");
+        var currentVersion = ParseVersion(Application.ProductVersion, "installed");
+        if (!Uri.TryCreate(manifest.DownloadUrl, UriKind.Absolute, out var downloadUri) ||
             downloadUri.Scheme != Uri.UriSchemeHttps ||
-            !downloadUri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase) ||
-            manifest.Sha256.Length != 64 ||
-            !manifest.Sha256.All(Uri.IsHexDigit))
+            !downloadUri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase))
         {
-            throw new InvalidOperationException("The update information failed validation.");
+            throw new InvalidOperationException("The update download URL failed validation.");
+        }
+        if (manifest.Sha256.Length != 64 || !manifest.Sha256.All(Uri.IsHexDigit))
+        {
+            throw new InvalidOperationException("The update security fingerprint failed validation.");
         }
 
+        DiagnosticLog.Info(
+            $"Update information validated. Installed={currentVersion}; Available={availableVersion}");
         return new UpdateCheckResult(
             availableVersion > currentVersion,
             currentVersion,
@@ -86,6 +90,24 @@ internal static class UpdateService
                 Environment.ProcessId.ToString()
             }
         });
+    }
+
+    internal static Version ParseVersion(string value, string label)
+    {
+        var normalized = (value ?? string.Empty).Trim();
+        var metadataIndex = normalized.IndexOfAny(['+', '-']);
+        if (metadataIndex >= 0)
+        {
+            normalized = normalized[..metadataIndex];
+        }
+
+        if (Version.TryParse(normalized, out var version))
+        {
+            return version;
+        }
+
+        throw new InvalidOperationException(
+            $"The {label} application version failed validation.");
     }
 
     private static void ValidateConnectionSettings(CaptureSettings settings)
