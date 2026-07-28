@@ -300,6 +300,25 @@ internal sealed class MainForm : Form
         supportBundleButton.Click += (_, _) => CreateSupportBundle();
         actions.Controls.Add(supportBundleButton);
 
+        var uploadSupportBundleButton = new Button
+        {
+            Text = "Upload support bundle",
+            AutoSize = true,
+            Padding = new Padding(8, 5, 8, 5)
+        };
+        uploadSupportBundleButton.Click += async (_, _) =>
+            await UploadSupportBundleAsync(uploadSupportBundleButton);
+        actions.Controls.Add(uploadSupportBundleButton);
+
+        var updateButton = new Button
+        {
+            Text = "Check for updates",
+            AutoSize = true,
+            Padding = new Padding(8, 5, 8, 5)
+        };
+        updateButton.Click += async (_, _) => await CheckForUpdatesAsync(false, updateButton);
+        actions.Controls.Add(updateButton);
+
         return actions;
     }
 
@@ -378,6 +397,11 @@ internal sealed class MainForm : Form
             WindowState = FormWindowState.Minimized;
             Hide();
         }
+
+        if (_settings.IngestToken.Trim().Length >= 24)
+        {
+            _ = CheckForUpdatesAsync(true);
+        }
     }
 
     private void ConfigureTrayIcon()
@@ -387,6 +411,8 @@ internal sealed class MainForm : Form
         menu.Items.Add("Capture now", null, (_, _) => CaptureNow());
         menu.Items.Add("Start / pause monitoring", null, (_, _) => ToggleMonitoring());
         menu.Items.Add("Open captures folder", null, (_, _) => OpenCaptureDirectory());
+        menu.Items.Add("Upload support bundle", null, async (_, _) => await UploadSupportBundleAsync());
+        menu.Items.Add("Check for updates", null, async (_, _) => await CheckForUpdatesAsync(false));
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Exit", null, (_, _) =>
         {
@@ -830,6 +856,135 @@ internal sealed class MainForm : Form
                 AppPaths.ProductName,
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error);
+        }
+    }
+
+    private async Task UploadSupportBundleAsync(Button? sourceButton = null)
+    {
+        SaveWebSyncSettings();
+        var confirmation = MessageBox.Show(
+            this,
+            "Create and upload a private support bundle?\n\n" +
+            "The ZIP excludes screenshots, the executable, and the import token. " +
+            "It may contain player names, the computer name, diagnostic text, and local file paths.\n\n" +
+            "The bundle will stay private and will only be downloadable through a short-lived, single-use support link.",
+            "Upload private support bundle",
+            MessageBoxButtons.OKCancel,
+            MessageBoxIcon.Warning);
+        if (confirmation != DialogResult.OK)
+        {
+            return;
+        }
+
+        if (sourceButton is not null)
+        {
+            sourceButton.Enabled = false;
+            sourceButton.Text = "Uploading…";
+        }
+
+        try
+        {
+            var path = SupportBundle.Create(_settings);
+            var receipt = await SupportBundleUploadClient.UploadAsync(_settings, path);
+            DiagnosticLog.Info($"Support bundle uploaded. BundleId={receipt.BundleId}; Sha256={receipt.Sha256}");
+            MessageBox.Show(
+                this,
+                "Support bundle uploaded securely.\n\n" +
+                $"Bundle ID: {receipt.BundleId}\n\n" +
+                "You can now ask Codex to download the latest support bundle. " +
+                "The local ZIP has also been kept on this computer.",
+                AppPaths.ProductName,
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+        }
+        catch (Exception exception)
+        {
+            DiagnosticLog.Error("Support bundle upload failed.", exception);
+            MessageBox.Show(
+                this,
+                $"The support bundle could not be uploaded:\n\n{exception.Message}",
+                AppPaths.ProductName,
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+        }
+        finally
+        {
+            if (sourceButton is not null)
+            {
+                sourceButton.Enabled = true;
+                sourceButton.Text = "Upload support bundle";
+            }
+        }
+    }
+
+    private async Task CheckForUpdatesAsync(bool silentWhenCurrent, Button? sourceButton = null)
+    {
+        SaveWebSyncSettings();
+        if (sourceButton is not null)
+        {
+            sourceButton.Enabled = false;
+            sourceButton.Text = "Checking…";
+        }
+
+        try
+        {
+            var result = await UpdateService.CheckAsync(_settings);
+            if (!result.IsUpdateAvailable)
+            {
+                if (!silentWhenCurrent)
+                {
+                    MessageBox.Show(
+                        this,
+                        $"VRena Results Capture {result.CurrentVersion.ToString(3)} is up to date.",
+                        AppPaths.ProductName,
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information);
+                }
+                return;
+            }
+
+            ShowFromTray();
+            var response = MessageBox.Show(
+                this,
+                $"VRena Results Capture {result.AvailableVersion.ToString(3)} is available.\n\n" +
+                $"{result.Manifest.ReleaseNotes}\n\n" +
+                "Download, verify, and install it now? Your settings, screenshots, result history, and logs will be kept.",
+                "Update available",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Information);
+            if (response != DialogResult.Yes)
+            {
+                return;
+            }
+
+            if (sourceButton is not null)
+            {
+                sourceButton.Text = "Downloading…";
+            }
+            await UpdateService.DownloadAndInstallAsync(result.Manifest);
+            _allowClose = true;
+            Close();
+        }
+        catch (Exception exception)
+        {
+            DiagnosticLog.Error("Update check or installation failed.", exception);
+            if (!silentWhenCurrent)
+            {
+                MessageBox.Show(
+                    this,
+                    $"The update could not be completed:\n\n{exception.Message}",
+                    AppPaths.ProductName,
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            }
+        }
+        finally
+        {
+            if (sourceButton is not null && !sourceButton.IsDisposed)
+            {
+                sourceButton.Enabled = true;
+                sourceButton.Text = "Check for updates";
+            }
         }
     }
 

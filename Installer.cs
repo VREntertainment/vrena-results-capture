@@ -68,6 +68,52 @@ internal static class Installer
         }
     }
 
+    internal static void ApplyUpdate(string[] args)
+    {
+        try
+        {
+            var waitPid = ParseWaitProcessId(args);
+            if (waitPid is not null)
+            {
+                try
+                {
+                    using var process = Process.GetProcessById(waitPid.Value);
+                    if (!process.WaitForExit(60_000))
+                    {
+                        throw new InvalidOperationException("The previous version did not close in time.");
+                    }
+                }
+                catch (ArgumentException)
+                {
+                    // The previous process already exited.
+                }
+            }
+
+            var sourceExecutable = Environment.ProcessPath
+                ?? throw new InvalidOperationException("The update executable path is unavailable.");
+            Directory.CreateDirectory(AppPaths.InstallDirectory);
+            File.Copy(sourceExecutable, AppPaths.InstalledExecutable, true);
+            SetRunAtLogin(true);
+            CreateStartMenuShortcut();
+            RegisterUninstaller();
+
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = AppPaths.InstalledExecutable,
+                Arguments = "--installed --updated",
+                UseShellExecute = true
+            });
+        }
+        catch (Exception exception)
+        {
+            MessageBox.Show(
+                $"The update could not be installed:\n\n{exception.Message}",
+                "VRena Results Capture",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+        }
+    }
+
     internal static void SetRunAtLogin(bool enabled)
     {
         using var runKey = Registry.CurrentUser.CreateSubKey(
@@ -144,11 +190,26 @@ internal static class Installer
         }
     }
 
+    private static int? ParseWaitProcessId(string[] args)
+    {
+        for (var index = 0; index < args.Length - 1; index++)
+        {
+            if (args[index].Equals("--wait-pid", StringComparison.OrdinalIgnoreCase) &&
+                int.TryParse(args[index + 1], out var processId) &&
+                processId > 0)
+            {
+                return processId;
+            }
+        }
+
+        return null;
+    }
+
     private static void RegisterUninstaller()
     {
         using var key = Registry.CurrentUser.CreateSubKey(AppPaths.UninstallRegistryKey, true);
         key?.SetValue("DisplayName", AppPaths.ProductName);
-        key?.SetValue("DisplayVersion", "2.0.1");
+        key?.SetValue("DisplayVersion", Application.ProductVersion);
         key?.SetValue("Publisher", "VRena");
         key?.SetValue("InstallLocation", AppPaths.InstallDirectory);
         key?.SetValue("DisplayIcon", AppPaths.InstalledExecutable);

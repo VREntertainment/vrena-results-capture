@@ -11,6 +11,12 @@ internal static class Program
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
 
+        if (args.Any(argument => argument.Equals("--apply-update", StringComparison.OrdinalIgnoreCase)))
+        {
+            Installer.ApplyUpdate(args);
+            return;
+        }
+
         if (args.Any(argument => argument.Equals("--uninstall", StringComparison.OrdinalIgnoreCase)))
         {
             Installer.Uninstall();
