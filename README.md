@@ -1,0 +1,62 @@
+# VRena Results Capture
+
+VRena Results Capture is a Windows 10/11 x64 notification-area utility that saves one full-display PNG whenever a configured VR results screen appears. It can also read the game, exact player names, Hits, Accuracy, Movement and Score, then send those structured results to the VRena web app.
+
+## Install
+
+1. Copy `VRenaResultsCapture-Setup.exe` to the Windows computer that displays the VR game server.
+2. Double-click it and choose **OK** to install for the current Windows user.
+3. Windows may show a SmartScreen warning because this private build is not code-signed. Choose **More info**, then **Run anyway**.
+4. No administrator permission is required.
+
+The application installs under `%LOCALAPPDATA%\VRena Results Capture`, adds itself to the Start menu, and starts automatically when that user signs in.
+
+## First-time setup
+
+1. Show a completed results page in the VR server application.
+2. Open **VRena Results Capture** from the notification area.
+3. Select the display showing the results.
+4. Choose **Configure**.
+5. Draw a tight box around the stable word **Results**. Do not include the changing session number, date, time, or scores.
+6. Monitoring starts automatically.
+
+## Web app sync
+
+1. Enter the deployed VRena web app HTTPS URL.
+2. Enter the same import token configured as `VRENA_RESULTS_INGEST_TOKEN` in the web app.
+3. Choose **Test** and confirm that the status says **Connected**.
+4. Enable **Send recognized statistics after each local capture**.
+
+The screenshot itself is never uploaded. Only the recognized game, exact player name, date/time, Hits, Accuracy, Movement and Score are sent.
+
+Keep the VR server window in the same position and at the same display resolution. Reconfigure recognition if either changes.
+
+Version 2.0.1 reads the header, both player tables, and the bottom-left game label in separate enlarged OCR passes. This is designed for the venue server's 3840 × 2160 results display, where a single full-screen OCR pass can miss the smaller game and player statistics.
+
+## Saved files
+
+The default folder is:
+
+`%USERPROFILE%\Pictures\VRena Results`
+
+Screenshots are organized by year and month:
+
+`2026\07\VRena_Result_2026-07-27_12-47-03-123.png`
+
+`capture-log.csv` records the local timestamp, UTC offset, monitor, and file path. `recognized-results.csv` and the `recognized-results` folder retain the complete local result history. Failed web syncs stay in `sync-pending` and are retried automatically. The application never uploads or automatically deletes screenshots.
+
+## Diagnostics and support
+
+The application continuously records local diagnostic logs under:
+
+`%USERPROFILE%\Pictures\VRena Results\Diagnostics`
+
+If a capture, OCR, or web sync problem occurs, open the application and choose **Create support bundle**. A ZIP is created under `SupportBundles`. Send that ZIP privately for audit and debugging.
+
+The ZIP excludes the import token, environment variables, executable, and screenshots. It includes recent application logs, OCR text, sanitized settings, screen information, and result-history CSV files. It can contain player names, the computer name, and local paths.
+
+## Uninstall
+
+Use **Windows Settings → Apps → Installed apps → VRena Results Capture → Uninstall**.
+
+Uninstalling removes the application but deliberately leaves all screenshots and `capture-log.csv` untouched.
