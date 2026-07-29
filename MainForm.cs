@@ -25,6 +25,7 @@ internal sealed class MainForm : Form
     private readonly NotifyIcon _trayIcon = new();
     private MonitorEngine? _engine;
     private bool _allowClose;
+    private bool _loadingSettings = true;
     private bool _shownCloseHint;
 
     internal MainForm(CaptureSettings? settings = null)
@@ -42,6 +43,7 @@ internal sealed class MainForm : Form
         BuildInterface();
         ConfigureTrayIcon();
         LoadSettingsIntoControls();
+        _loadingSettings = false;
         FormClosing += HandleFormClosing;
         Shown += HandleShown;
     }
@@ -140,14 +142,14 @@ internal sealed class MainForm : Form
 
         layout.Controls.Add(CreateFieldLabel("Web app URL"), 0, 2);
         _webAppUrl.Dock = DockStyle.Fill;
-        _webAppUrl.Leave += (_, _) => SaveWebSyncSettings();
+        _webAppUrl.TextChanged += (_, _) => SaveWebSyncSettings();
         layout.Controls.Add(_webAppUrl, 1, 2);
         layout.SetColumnSpan(_webAppUrl, 2);
 
         layout.Controls.Add(CreateFieldLabel("Import token"), 0, 3);
         _ingestToken.Dock = DockStyle.Fill;
         _ingestToken.UseSystemPasswordChar = true;
-        _ingestToken.Leave += (_, _) => SaveWebSyncSettings();
+        _ingestToken.TextChanged += (_, _) => SaveWebSyncSettings();
         layout.Controls.Add(_ingestToken, 1, 3);
 
         var testButton = new Button { Text = "Test", AutoSize = true };
@@ -443,6 +445,7 @@ internal sealed class MainForm : Form
     {
         if (_allowClose || eventArgs.CloseReason == CloseReason.WindowsShutDown)
         {
+            SaveWebSyncSettings();
             _engine?.Dispose();
             _trayIcon.Visible = false;
             return;
@@ -706,6 +709,11 @@ internal sealed class MainForm : Form
 
     private void SaveWebSyncSettings()
     {
+        if (_loadingSettings)
+        {
+            return;
+        }
+
         _settings.SyncEnabled = _syncEnabled.Checked;
         _settings.WebAppBaseUrl = _webAppUrl.Text.Trim();
         _settings.IngestToken = _ingestToken.Text.Trim();

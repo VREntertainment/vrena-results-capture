@@ -18,6 +18,9 @@ internal static class AppPaths
     internal static string SettingsFile =>
         Path.Combine(InstallDirectory, "settings.json");
 
+    internal static string SettingsBackupFile =>
+        Path.Combine(InstallDirectory, "settings.backup.json");
+
     internal static string ReferenceImage =>
         Path.Combine(InstallDirectory, "reference.png");
 

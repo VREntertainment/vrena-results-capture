@@ -33,6 +33,8 @@ Keep the VR server window in the same position and at the same display resolutio
 
 Version 2.1.2 adds focused OCR passes for each player row and the bottom-left game label, and tolerates common Windows OCR substitutions in numeric fields. This is designed for the venue server's 3840 × 2160 results display, where a broad full-screen pass can miss the smaller game and player statistics.
 
+Version 2.1.3 keeps the web app URL and import token saved while settings are loaded, saves edits immediately, saves once more during Windows shutdown, and restores valid connection details from an atomic backup if the main settings file is damaged.
+
 ## Online updates
 
 Version 2.1.1 is the last version that needs a normal manual installation. Future versions are checked automatically through the configured web app. Choose **Check for updates** at any time, or accept the update prompt after startup. The application downloads the release over HTTPS, verifies its SHA-256 fingerprint, replaces only the installed executable, and restarts. Settings, screenshots, local result history, pending synchronization, and logs are preserved.
