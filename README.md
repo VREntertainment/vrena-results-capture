@@ -31,7 +31,7 @@ The screenshot itself is never uploaded. Only the recognized game, exact player 
 
 Keep the VR server window in the same position and at the same display resolution. Reconfigure recognition if either changes.
 
-Version 2.1.1 reads the header, both player tables, and the bottom-left game label in separate enlarged OCR passes. This is designed for the venue server's 3840 × 2160 results display, where a single full-screen OCR pass can miss the smaller game and player statistics.
+Version 2.1.2 adds focused OCR passes for each player row and the bottom-left game label, and tolerates common Windows OCR substitutions in numeric fields. This is designed for the venue server's 3840 × 2160 results display, where a broad full-screen pass can miss the smaller game and player statistics.
 
 ## Online updates
 
@@ -47,7 +47,7 @@ Screenshots are organized by year and month:
 
 `2026\07\VRena_Result_2026-07-27_12-47-03-123.png`
 
-`capture-log.csv` records the local timestamp, UTC offset, monitor, and file path. `recognized-results.csv` and the `recognized-results` folder retain the complete local result history. Failed web syncs stay in `sync-pending` and are retried automatically. The application never uploads or automatically deletes screenshots.
+`capture-log.csv` records the local timestamp, UTC offset, monitor, and file path. `recognized-results.csv` and the `recognized-results` folder retain the complete local result history. Failed web syncs stay in `sync-pending` and are retried automatically. Regular result sync never uploads screenshots, and the application never automatically deletes them.
 
 ## Diagnostics and support
 
@@ -57,7 +57,7 @@ The application continuously records local diagnostic logs under:
 
 If a capture, OCR, or web sync problem occurs, open the application and choose **Create support bundle**. A ZIP is created under `SupportBundles`.
 
-The ZIP excludes the import token, environment variables, executable, and screenshots. It includes recent application logs, OCR text, sanitized settings, screen information, and result-history CSV files. It can contain player names, the computer name, and local paths.
+The ZIP excludes the import token, environment variables, and executable. It includes the latest captured screenshot at a reduced size, recent application logs, OCR text, sanitized settings, screen information, and result-history CSV files. It can contain player names, the computer name, and local paths.
 
 Choose **Upload support bundle** to create the same ZIP and send it to VRena's private support storage after an explicit privacy confirmation. The local copy remains on the computer. Uploaded bundles are not public; retrieval requires a short-lived, single-use support token.
 

@@ -27,7 +27,7 @@ internal static class ResultSyncClient
         if (result is null)
         {
             return new ResultProcessingOutcome(
-                "Screenshot saved, but the result table could not be read.",
+                "Screenshot saved. Result needs review.",
                 false,
                 false);
         }
@@ -40,7 +40,7 @@ internal static class ResultSyncClient
         if (!settings.SyncEnabled)
         {
             return new ResultProcessingOutcome(
-                $"Read {result.Players.Count} player result(s); web sync is disabled.",
+                "Result saved. Sync is off.",
                 true,
                 false);
         }
@@ -52,7 +52,7 @@ internal static class ResultSyncClient
             $"Web synchronization completed. CaptureId={result.CaptureId}; PendingSent={syncedCount}");
 
         return new ResultProcessingOutcome(
-            $"Saved and synced {result.Players.Count} player result(s). Pending queue sent: {syncedCount}.",
+            "Result saved and synced.",
             true,
             true);
     }

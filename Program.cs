@@ -34,7 +34,7 @@ internal static class Program
         if (!isFirstInstance)
         {
             MessageBox.Show(
-                "VRena Results Capture is already running in the notification area.",
+                "VRena Results Capture is already running.",
                 "VRena Results Capture",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);

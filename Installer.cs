@@ -20,9 +20,7 @@ internal static class Installer
     internal static void InstallAndLaunch()
     {
         var response = MessageBox.Show(
-            "Install VRena Results Capture for this Windows user?\n\n" +
-            "The application will start with Windows and save screenshots only on this computer. " +
-            "It never deletes old captures.",
+            "Install VRena Results Capture?",
             "Install VRena Results Capture",
             MessageBoxButtons.OKCancel,
             MessageBoxIcon.Information);
@@ -52,16 +50,15 @@ internal static class Installer
             });
 
             MessageBox.Show(
-                "Installation is complete.\n\n" +
-                "VRena Results Capture has been added to the Start menu and will start automatically with Windows.",
+                "Installation complete.",
                 "VRena Results Capture",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
         }
-        catch (Exception exception)
+        catch (Exception)
         {
             MessageBox.Show(
-                $"Installation could not be completed:\n\n{exception.Message}",
+                "Couldn’t install the app. Please try again.",
                 "VRena Results Capture",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error);
@@ -104,10 +101,10 @@ internal static class Installer
                 UseShellExecute = true
             });
         }
-        catch (Exception exception)
+        catch (Exception)
         {
             MessageBox.Show(
-                $"The update could not be installed:\n\n{exception.Message}",
+                "Couldn’t install the update. Please try again.",
                 "VRena Results Capture",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error);
@@ -136,8 +133,7 @@ internal static class Installer
     internal static void Uninstall()
     {
         var response = MessageBox.Show(
-            "Remove VRena Results Capture from this computer?\n\n" +
-            "Saved screenshots and the capture log will remain untouched.",
+            "Remove VRena Results Capture?",
             "Uninstall VRena Results Capture",
             MessageBoxButtons.OKCancel,
             MessageBoxIcon.Warning);
@@ -175,15 +171,15 @@ internal static class Installer
             });
 
             MessageBox.Show(
-                "VRena Results Capture has been removed. Your screenshots were not deleted.",
+                "App removed. Screenshots were kept.",
                 "VRena Results Capture",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
         }
-        catch (Exception exception)
+        catch (Exception)
         {
             MessageBox.Show(
-                $"Uninstall could not be completed:\n\n{exception.Message}",
+                "Couldn’t remove the app. Please try again.",
                 "VRena Results Capture",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error);

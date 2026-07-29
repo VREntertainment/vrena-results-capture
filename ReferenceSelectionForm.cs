@@ -61,7 +61,7 @@ internal sealed class ReferenceSelectionForm : Form
         eventArgs.Graphics.FillRectangle(instructionBackground, instructionRectangle);
         TextRenderer.DrawText(
             eventArgs.Graphics,
-            "Drag a tight box around the stable word “Results”.\nRelease to save. Press Esc to cancel.",
+            "Draw a box around “Results”.\nRelease to save. Esc to cancel.",
             instructionFont,
             instructionRectangle,
             Color.White,
@@ -104,7 +104,7 @@ internal sealed class ReferenceSelectionForm : Form
         if (_selection.Width < 16 || _selection.Height < 12)
         {
             MessageBox.Show(
-                "Please draw a slightly larger box around the word “Results”.",
+                "Draw a slightly larger box.",
                 "Recognition area too small",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);

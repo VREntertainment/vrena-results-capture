@@ -50,6 +50,9 @@ internal static partial class WindowsResultReader
             await RecognizeRegionAsync(engine, screenshot, "header", new RectangleF(0.22f, 0.06f, 0.56f, 0.24f)),
             await RecognizeRegionAsync(engine, screenshot, "left-table", new RectangleF(0.05f, 0.20f, 0.50f, 0.42f)),
             await RecognizeRegionAsync(engine, screenshot, "right-table", new RectangleF(0.45f, 0.20f, 0.50f, 0.42f)),
+            await RecognizeRegionAsync(engine, screenshot, "left-player-row", new RectangleF(0.02f, 0.27f, 0.47f, 0.12f)),
+            await RecognizeRegionAsync(engine, screenshot, "right-player-row", new RectangleF(0.51f, 0.27f, 0.47f, 0.12f)),
+            await RecognizeRegionAsync(engine, screenshot, "game-footer", new RectangleF(0, 0.90f, 0.25f, 0.10f)),
             await RecognizeRegionAsync(engine, screenshot, "game", new RectangleF(0, 0.72f, 0.48f, 0.28f))
         };
 
@@ -62,7 +65,9 @@ internal static partial class WindowsResultReader
         var gameText = string.Join(
             Environment.NewLine,
             passes
-                .OrderBy(pass => pass.Name.Equals("game", StringComparison.Ordinal) ? 0 : 1)
+                .OrderBy(pass => pass.Name.Equals("game-footer", StringComparison.Ordinal)
+                    ? 0
+                    : pass.Name.Equals("game", StringComparison.Ordinal) ? 1 : 2)
                 .Select(pass => pass.Text));
         var game = FindGame(gameText);
         if (game is null)
@@ -72,7 +77,7 @@ internal static partial class WindowsResultReader
         }
 
         var players = passes
-            .Where(pass => pass.Name is "left-table" or "right-table" or "full")
+            .Where(pass => pass.Name is "left-player-row" or "right-player-row" or "left-table" or "right-table" or "full")
             .SelectMany(pass => CandidateRows(pass.Result))
             .Select(ParsePlayerLine)
             .Where(player => player is not null)
@@ -246,6 +251,7 @@ internal static partial class WindowsResultReader
         }
 
         var name = match.Groups["name"].Value.Trim(' ', '"', '“', '”');
+        name = LeadingCrownArtifactPattern().Replace(name, string.Empty).Trim();
         name = DefaultPlayerNamePattern().Replace(name, "Player$1");
         if (name.Length is < 1 or > 80 ||
             name.Equals("Team", StringComparison.OrdinalIgnoreCase))
@@ -253,9 +259,9 @@ internal static partial class WindowsResultReader
             return null;
         }
 
-        if (!int.TryParse(match.Groups["hits"].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var hits) ||
+        if (!TryOcrInteger(match.Groups["hits"].Value, out var hits) ||
             !int.TryParse(match.Groups["score"].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var score) ||
-            !TryDecimal(match.Groups["accuracy"].Value, out var accuracy) ||
+            !TryOcrAccuracy(match.Groups["accuracy"].Value, out var accuracy) ||
             !TryDecimal(match.Groups["movement"].Value, out var movement))
         {
             return null;
@@ -282,6 +288,26 @@ internal static partial class WindowsResultReader
             NumberStyles.AllowDecimalPoint,
             CultureInfo.InvariantCulture,
             out parsed);
+
+    private static bool TryOcrInteger(string value, out int parsed) =>
+        int.TryParse(
+            value.Replace('O', '0').Replace('o', '0'),
+            NumberStyles.Integer,
+            CultureInfo.InvariantCulture,
+            out parsed);
+
+    private static bool TryOcrAccuracy(string value, out double parsed)
+    {
+        var normalized = value
+            .Replace(',', '.')
+            .Replace("/0", string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Trim();
+        return double.TryParse(
+            normalized,
+            NumberStyles.AllowDecimalPoint,
+            CultureInfo.InvariantCulture,
+            out parsed);
+    }
 
     private static (string Name, string Slug)? FindGame(string text)
     {
@@ -383,9 +409,14 @@ internal static partial class WindowsResultReader
     }
 
     [GeneratedRegex(
-        @"^(?<name>.+?)\s+(?<hits>\d+)\s+(?<accuracy>\d+(?:[\.,]\d+)?)\s*%\s+(?<movement>\d+(?:[\.,]\d+)?)\s*m\s+(?<score>\d+)\s*$",
+        @"^(?<name>.+?)\s+(?<hits>\d+|[Oo])\s+(?<accuracy>\d+(?:[\.,]\d+)?(?:/0)?)\s*(?:%|/0)?\s+(?<movement>\d+(?:[\.,]\d+)?)\s*m\s+(?<score>\d+)\s*$",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex PlayerLinePattern();
+
+    [GeneratedRegex(
+        @"^(?:w|v|♛|♚|♕|♔)\s+",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex LeadingCrownArtifactPattern();
 
     [GeneratedRegex(
         @"^Player\s+(\d+)$",

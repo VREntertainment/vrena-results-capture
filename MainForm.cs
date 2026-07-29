@@ -478,8 +478,7 @@ internal sealed class MainForm : Form
         if (AppPaths.IsInsideInstallDirectory(dialog.SelectedPath))
         {
             MessageBox.Show(
-                "Choose a folder outside the application installation folder. " +
-                "This protects your screenshots when the application is uninstalled.",
+                "Choose a different folder for screenshots.",
                 AppPaths.ProductName,
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Warning);
@@ -531,8 +530,7 @@ internal sealed class MainForm : Form
             UpdateReferenceStatus();
 
             MessageBox.Show(
-                "Recognition is configured. The utility will capture once when that screen appears, " +
-                "then wait for it to disappear before it can capture the next result.",
+                "Screen recognition is ready.",
                 AppPaths.ProductName,
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
@@ -588,7 +586,7 @@ internal sealed class MainForm : Form
         if (!_settings.HasReference)
         {
             MessageBox.Show(
-                "First show a results page on the selected display, then choose Configure and draw a box around the word “Results”.",
+                "Show a results screen, then choose Configure.",
                 "Configure screen recognition",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
@@ -638,7 +636,7 @@ internal sealed class MainForm : Form
         {
             DiagnosticLog.Error("Manual screenshot failed.", exception);
             MessageBox.Show(
-                $"The screenshot could not be saved:\n\n{exception.Message}",
+                "Couldn’t save the screenshot. Please try again.",
                 AppPaths.ProductName,
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error);
@@ -700,7 +698,7 @@ internal sealed class MainForm : Form
             DiagnosticLog.Error($"Result processing failed for {path}.", exception);
             SafeUi(() =>
             {
-                _syncStatus.Text = exception.Message;
+                _syncStatus.Text = "Couldn’t sync. It will retry.";
                 _syncStatus.ForeColor = Color.Firebrick;
             });
         }
@@ -729,7 +727,7 @@ internal sealed class MainForm : Form
         catch (Exception exception)
         {
             DiagnosticLog.Error("Web sync connection test failed.", exception);
-            _syncStatus.Text = exception.Message;
+            _syncStatus.Text = "Couldn’t connect.";
             _syncStatus.ForeColor = Color.Firebrick;
         }
         finally
@@ -762,7 +760,7 @@ internal sealed class MainForm : Form
             DiagnosticLog.Error("Retrying pending web results failed.", exception);
             SafeUi(() =>
             {
-                _syncStatus.Text = $"Pending sync: {exception.Message}";
+                _syncStatus.Text = "Waiting to sync.";
                 _syncStatus.ForeColor = Color.Firebrick;
             });
         }
@@ -771,7 +769,7 @@ internal sealed class MainForm : Form
     private void HandleCaptureError(string message)
     {
         DiagnosticLog.Warning($"Capture engine error: {message}");
-        SafeUi(() => UpdateMonitoringStatus($"Capture error: {message}", Color.Firebrick));
+        SafeUi(() => UpdateMonitoringStatus("Capture issue. It will retry.", Color.Firebrick));
     }
 
     private void SafeUi(Action action)
@@ -826,7 +824,7 @@ internal sealed class MainForm : Form
         {
             DiagnosticLog.Error("Opening the capture directory failed.", exception);
             MessageBox.Show(
-                $"The capture folder could not be opened:\n\n{exception.Message}",
+                "Couldn’t open the screenshot folder.",
                 AppPaths.ProductName,
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error);
@@ -840,10 +838,7 @@ internal sealed class MainForm : Form
             SaveWebSyncSettings();
             var path = SupportBundle.Create(_settings);
             MessageBox.Show(
-                "Support bundle created.\n\n" +
-                $"{path}\n\n" +
-                "It does not contain the import token, executable, or screenshots. " +
-                "It can contain player names, machine information, and local paths, so share it privately.",
+                "Debug log saved. The latest screenshot is included.",
                 AppPaths.ProductName,
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
@@ -857,7 +852,7 @@ internal sealed class MainForm : Form
         {
             DiagnosticLog.Error("Support bundle creation failed.", exception);
             MessageBox.Show(
-                $"The support bundle could not be created:\n\n{exception.Message}",
+                "Couldn’t create the debug log. Please try again.",
                 AppPaths.ProductName,
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error);
@@ -869,11 +864,8 @@ internal sealed class MainForm : Form
         SaveWebSyncSettings();
         var confirmation = MessageBox.Show(
             this,
-            "Create and upload a private support bundle?\n\n" +
-            "The ZIP excludes screenshots, the executable, and the import token. " +
-            "It may contain player names, the computer name, diagnostic text, and local file paths.\n\n" +
-            "The bundle will stay private and will only be downloadable through a short-lived, single-use support link.",
-            "Upload private support bundle",
+            "Send the latest screenshot and debug log to VRena support?",
+            "Send debug log",
             MessageBoxButtons.OKCancel,
             MessageBoxIcon.Warning);
         if (confirmation != DialogResult.OK)
@@ -894,10 +886,7 @@ internal sealed class MainForm : Form
             DiagnosticLog.Info($"Support bundle uploaded. BundleId={receipt.BundleId}; Sha256={receipt.Sha256}");
             MessageBox.Show(
                 this,
-                "Support bundle uploaded securely.\n\n" +
-                $"Bundle ID: {receipt.BundleId}\n\n" +
-                "You can now ask Codex to download the latest support bundle. " +
-                "The local ZIP has also been kept on this computer.",
+                "Debug log sent.",
                 AppPaths.ProductName,
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
@@ -907,7 +896,7 @@ internal sealed class MainForm : Form
             DiagnosticLog.Error("Support bundle upload failed.", exception);
             MessageBox.Show(
                 this,
-                $"The support bundle could not be uploaded:\n\n{exception.Message}",
+                "Couldn’t send the debug log. Please try again.",
                 AppPaths.ProductName,
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error);
@@ -951,9 +940,7 @@ internal sealed class MainForm : Form
             ShowFromTray();
             var response = MessageBox.Show(
                 this,
-                $"VRena Results Capture {result.AvailableVersion.ToString(3)} is available.\n\n" +
-                $"{result.Manifest.ReleaseNotes}\n\n" +
-                "Download, verify, and install it now? Your settings, screenshots, result history, and logs will be kept.",
+                $"Version {result.AvailableVersion.ToString(3)} is ready. Install it now?",
                 "Update available",
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Information);
@@ -977,7 +964,7 @@ internal sealed class MainForm : Form
             {
                 MessageBox.Show(
                     this,
-                    $"The update could not be completed:\n\n{exception.Message}",
+                    "Couldn’t install the update. Please try again.",
                     AppPaths.ProductName,
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Error);

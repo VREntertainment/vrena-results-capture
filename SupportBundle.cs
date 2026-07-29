@@ -2,6 +2,8 @@ using System.IO.Compression;
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
+using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
 
 namespace VRenaResultsCapture;
 
@@ -20,6 +22,7 @@ internal static class SupportBundle
         var path = Path.Combine(
             bundleDirectory,
             $"VRena-Results-Capture-Support-{timestamp:yyyyMMdd-HHmmss}.zip");
+        var latestScreenshot = FindLatestScreenshot(settings.CaptureDirectory);
 
         using var archive = ZipFile.Open(path, ZipArchiveMode.Create);
 
@@ -29,7 +32,7 @@ internal static class SupportBundle
             "VRena Results Capture support bundle\r\n" +
             $"Created: {timestamp:O}\r\n" +
             "ContainsImportToken: false\r\n" +
-            "ContainsScreenshots: false\r\n" +
+            $"ContainsScreenshots: {latestScreenshot is not null} (latest capture only)\r\n" +
             "ContainsExecutable: false\r\n" +
             "MayContainPlayerNames: true\r\n" +
             "MayContainMachineAndLocalPathInformation: true\r\n" +
@@ -94,9 +97,72 @@ internal static class SupportBundle
             archive,
             AppPaths.ReferenceImage,
             "configuration/reference.png");
+        if (latestScreenshot is not null)
+        {
+            AddCompressedScreenshot(archive, latestScreenshot, "latest-capture.jpg");
+        }
 
         DiagnosticLog.Info($"Support bundle created: {path}");
         return path;
+    }
+
+    private static string? FindLatestScreenshot(string captureDirectory)
+    {
+        if (!Directory.Exists(captureDirectory))
+        {
+            return null;
+        }
+
+        var excludedDirectories = new[]
+        {
+            Path.GetFullPath(AppPaths.DiagnosticsDirectory(captureDirectory)),
+            Path.GetFullPath(AppPaths.SupportBundlesDirectory(captureDirectory))
+        };
+        return Directory
+            .EnumerateFiles(captureDirectory, "*.png", SearchOption.AllDirectories)
+            .Where(file =>
+            {
+                var fullPath = Path.GetFullPath(file);
+                return excludedDirectories.All(directory =>
+                    !fullPath.StartsWith(
+                        directory + Path.DirectorySeparatorChar,
+                        StringComparison.OrdinalIgnoreCase));
+            })
+            .OrderByDescending(File.GetLastWriteTimeUtc)
+            .FirstOrDefault();
+    }
+
+    private static void AddCompressedScreenshot(
+        ZipArchive archive,
+        string sourcePath,
+        string targetPath)
+    {
+        using var source = new Bitmap(sourcePath);
+        const int maximumWidth = 1920;
+        const int maximumHeight = 1080;
+        var scale = Math.Min(
+            1d,
+            Math.Min(
+                (double)maximumWidth / source.Width,
+                (double)maximumHeight / source.Height));
+        var width = Math.Max(1, (int)Math.Round(source.Width * scale));
+        var height = Math.Max(1, (int)Math.Round(source.Height * scale));
+        using var resized = new Bitmap(width, height, PixelFormat.Format24bppRgb);
+        using (var graphics = Graphics.FromImage(resized))
+        {
+            graphics.CompositingQuality = CompositingQuality.HighQuality;
+            graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+            graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
+            graphics.DrawImage(source, 0, 0, width, height);
+        }
+
+        var encoder = ImageCodecInfo.GetImageEncoders()
+            .First(codec => codec.FormatID == ImageFormat.Jpeg.Guid);
+        using var quality = new EncoderParameters(1);
+        quality.Param[0] = new EncoderParameter(System.Drawing.Imaging.Encoder.Quality, 72L);
+        var entry = archive.CreateEntry(targetPath, CompressionLevel.NoCompression);
+        using var stream = entry.Open();
+        resized.Save(stream, encoder, quality);
     }
 
     private static void AddRecentFiles(
