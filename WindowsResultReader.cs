@@ -284,10 +284,10 @@ internal static partial class WindowsResultReader
             return null;
         }
 
-        if (!TryOcrInteger(match.Groups["hits"].Value, out var hits) ||
-            !TryOcrInteger(match.Groups["score"].Value, out var score) ||
-            !TryOcrAccuracy(match.Groups["accuracy"].Value, out var accuracy) ||
-            !TryDecimal(match.Groups["movement"].Value, out var movement))
+        if (!OcrResultValueParser.TryInteger(match.Groups["hits"].Value, out var hits) ||
+            !OcrResultValueParser.TryScore(match.Groups["score"].Value, gameSlug, out var score) ||
+            !OcrResultValueParser.TryAccuracy(match.Groups["accuracy"].Value, out var accuracy) ||
+            !OcrResultValueParser.TryDecimal(match.Groups["movement"].Value, out var movement))
         {
             return null;
         }
@@ -314,9 +314,9 @@ internal static partial class WindowsResultReader
         {
             var zeroScoreMatch = MiniBlockTowersZeroScorePlayerLinePattern().Match(line);
             if (!zeroScoreMatch.Success ||
-                !TryOcrInteger(zeroScoreMatch.Groups["hits"].Value, out var zeroHits) ||
-                !TryOcrInteger(zeroScoreMatch.Groups["shield"].Value, out var zeroShield) ||
-                !TryOcrInteger(zeroScoreMatch.Groups["towers"].Value, out var zeroTowers) ||
+                !OcrResultValueParser.TryInteger(zeroScoreMatch.Groups["hits"].Value, out var zeroHits) ||
+                !OcrResultValueParser.TryInteger(zeroScoreMatch.Groups["shield"].Value, out var zeroShield) ||
+                !OcrResultValueParser.TryInteger(zeroScoreMatch.Groups["towers"].Value, out var zeroTowers) ||
                 zeroHits != 0 || zeroShield != 0 || zeroTowers != 0)
             {
                 return null;
@@ -337,10 +337,10 @@ internal static partial class WindowsResultReader
 
         var name = CleanPlayerName(match.Groups["name"].Value);
         if (name is null ||
-            !TryOcrInteger(match.Groups["hits"].Value, out var hits) ||
-            !TryOcrInteger(match.Groups["shield"].Value, out var shield) ||
-            !TryOcrInteger(match.Groups["towers"].Value, out var towers) ||
-            !TryOcrInteger(match.Groups["score"].Value, out var score) ||
+            !OcrResultValueParser.TryInteger(match.Groups["hits"].Value, out var hits) ||
+            !OcrResultValueParser.TryInteger(match.Groups["shield"].Value, out var shield) ||
+            !OcrResultValueParser.TryInteger(match.Groups["towers"].Value, out var towers) ||
+            !OcrResultValueParser.TryInteger(match.Groups["score"].Value, out var score) ||
             hits < 0 || shield < 0 || towers < 0 || score < 0)
         {
             return null;
@@ -370,35 +370,6 @@ internal static partial class WindowsResultReader
         }
 
         return name;
-    }
-
-    private static bool TryDecimal(string value, out double parsed) =>
-        double.TryParse(
-            value.Replace('O', '0').Replace('o', '0').Replace(',', '.'),
-            NumberStyles.AllowDecimalPoint,
-            CultureInfo.InvariantCulture,
-            out parsed);
-
-    private static bool TryOcrInteger(string value, out int parsed) =>
-        int.TryParse(
-            value.Replace('O', '0').Replace('o', '0'),
-            NumberStyles.Integer,
-            CultureInfo.InvariantCulture,
-            out parsed);
-
-    private static bool TryOcrAccuracy(string value, out double parsed)
-    {
-        var normalized = value
-            .Replace('O', '0')
-            .Replace('o', '0')
-            .Replace(',', '.')
-            .Replace("/0", string.Empty, StringComparison.OrdinalIgnoreCase)
-            .Trim();
-        return double.TryParse(
-            normalized,
-            NumberStyles.AllowDecimalPoint,
-            CultureInfo.InvariantCulture,
-            out parsed);
     }
 
     private static (string Name, string Slug)? FindGame(string text)
