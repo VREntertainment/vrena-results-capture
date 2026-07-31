@@ -25,15 +25,17 @@ The application installs under `%LOCALAPPDATA%\VRena Results Capture`, adds itse
 1. Enter the deployed VRena web app HTTPS URL.
 2. Enter the same import token configured as `VRENA_RESULTS_INGEST_TOKEN` in the web app.
 3. Choose **Test** and confirm that the status says **Connected**.
-4. Enable **Send recognized statistics after each local capture**.
+4. Enable **Send recognized statistics or unresolved screenshots after each capture**.
 
-The screenshot itself is never uploaded. Only the recognized game, exact player name, date/time, Hits, Accuracy, Movement and Score are sent.
+Recognized results send only the game, exact player name, date/time, Hits, Accuracy, Movement and Score. If the app cannot read the game or all player rows, it automatically sends a compressed screenshot and OCR diagnostic text to private web-app review storage. The original full-resolution screenshot stays local.
 
 Keep the VR server window in the same position and at the same display resolution. Reconfigure recognition if either changes.
 
 Version 2.1.2 adds focused OCR passes for each player row and the bottom-left game label, and tolerates common Windows OCR substitutions in numeric fields. This is designed for the venue server's 3840 × 2160 results display, where a broad full-screen pass can miss the smaller game and player statistics.
 
 Version 2.1.3 keeps the web app URL and import token saved while settings are loaded, saves edits immediately, saves once more during Windows shutdown, and restores valid connection details from an atomic backup if the main settings file is damaged.
+
+Version 2.1.4 adds focused OCR for two player rows on each team (up to four players), automatically uploads incomplete captures to private review storage, and highlights the update button with a moving border light when a new version is available.
 
 ## Online updates
 
@@ -49,7 +51,7 @@ Screenshots are organized by year and month:
 
 `2026\07\VRena_Result_2026-07-27_12-47-03-123.png`
 
-`capture-log.csv` records the local timestamp, UTC offset, monitor, and file path. `recognized-results.csv` and the `recognized-results` folder retain the complete local result history. Failed web syncs stay in `sync-pending` and are retried automatically. Regular result sync never uploads screenshots, and the application never automatically deletes them.
+`capture-log.csv` records the local timestamp, UTC offset, monitor, and file path. `recognized-results.csv` and the `recognized-results` folder retain the complete local result history. Failed structured result syncs stay in `sync-pending`; failed review uploads stay in `review-pending`. Both retry automatically. The application never automatically deletes local screenshots.
 
 ## Diagnostics and support
 

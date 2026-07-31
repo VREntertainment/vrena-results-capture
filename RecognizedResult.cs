@@ -24,3 +24,9 @@ internal sealed record ResultProcessingOutcome(
     string Message,
     bool Recognized,
     bool Synced);
+
+internal sealed record ResultReadOutcome(
+    string CaptureId,
+    string OcrText,
+    RecognizedResult? Result,
+    string? ReviewReason);

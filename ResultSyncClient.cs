@@ -23,13 +23,36 @@ internal static class ResultSyncClient
         string screenshotPath,
         DateTimeOffset capturedAt)
     {
-        var result = await WindowsResultReader.ReadAsync(screenshotPath, capturedAt);
+        var readOutcome = await WindowsResultReader.ReadAsync(screenshotPath, capturedAt);
+        var result = readOutcome.Result;
         if (result is null)
         {
+            if (!settings.SyncEnabled)
+            {
+                return new ResultProcessingOutcome(
+                    "Screenshot saved. Review upload is off.",
+                    false,
+                    false);
+            }
+
+            ValidateSyncSettings(settings);
+            QueuePendingReview(
+                settings.CaptureDirectory,
+                new PendingResultReview
+                {
+                    CaptureId = readOutcome.CaptureId,
+                    CapturedAt = capturedAt,
+                    OcrText = readOutcome.OcrText,
+                    ReviewReason = readOutcome.ReviewReason ?? "players_not_recognized",
+                    ScreenshotPath = screenshotPath
+                });
+            var uploadedCount = await RetryPendingReviewsAsync(settings);
+            DiagnosticLog.Info(
+                $"Review synchronization completed. CaptureId={readOutcome.CaptureId}; PendingSent={uploadedCount}");
             return new ResultProcessingOutcome(
-                "Screenshot saved. Result needs review.",
+                "Screenshot uploaded for review.",
                 false,
-                false);
+                true);
         }
 
         AppendLocalResultHistory(settings.CaptureDirectory, result, screenshotPath);
@@ -102,6 +125,40 @@ internal static class ResultSyncClient
         }
 
         return syncedCount;
+    }
+
+    internal static async Task<int> RetryPendingReviewsAsync(CaptureSettings settings)
+    {
+        if (!settings.SyncEnabled)
+        {
+            return 0;
+        }
+
+        ValidateSyncSettings(settings);
+        var pendingDirectory = PendingReviewDirectory(settings.CaptureDirectory);
+        if (!Directory.Exists(pendingDirectory))
+        {
+            return 0;
+        }
+
+        var uploadedCount = 0;
+        foreach (var pendingPath in Directory.EnumerateFiles(pendingDirectory, "*.json").Order())
+        {
+            var review = JsonSerializer.Deserialize<PendingResultReview>(
+                await File.ReadAllTextAsync(pendingPath),
+                JsonOptions);
+            if (review is null)
+            {
+                continue;
+            }
+
+            var receipt = await ResultReviewUploadClient.UploadAsync(settings, review);
+            WriteReviewReceipt(settings.CaptureDirectory, review, receipt);
+            File.Delete(pendingPath);
+            uploadedCount++;
+        }
+
+        return uploadedCount;
     }
 
     private static HttpRequestMessage CreateRequest(CaptureSettings settings, HttpMethod method)
@@ -193,6 +250,20 @@ internal static class ResultSyncClient
     private static string PendingDirectory(string captureDirectory) =>
         Path.Combine(captureDirectory, "sync-pending");
 
+    private static void QueuePendingReview(string captureDirectory, PendingResultReview review)
+    {
+        var directory = PendingReviewDirectory(captureDirectory);
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, $"{review.CaptureId}.json");
+        if (!File.Exists(path))
+        {
+            File.WriteAllText(path, JsonSerializer.Serialize(review, JsonOptions), new UTF8Encoding(false));
+        }
+    }
+
+    private static string PendingReviewDirectory(string captureDirectory) =>
+        Path.Combine(captureDirectory, "review-pending");
+
     private static void WriteSyncReceipt(string captureDirectory, RecognizedResult result)
     {
         var directory = Path.Combine(captureDirectory, "sync-receipts");
@@ -206,6 +277,30 @@ internal static class ResultSyncClient
                 SyncedAt = DateTimeOffset.Now
             };
             File.WriteAllText(path, JsonSerializer.Serialize(receipt, JsonOptions), new UTF8Encoding(false));
+        }
+    }
+
+    private static void WriteReviewReceipt(
+        string captureDirectory,
+        PendingResultReview review,
+        ResultReviewUploadReceipt receipt)
+    {
+        var directory = Path.Combine(captureDirectory, "review-receipts");
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, $"{review.CaptureId}.json");
+        if (!File.Exists(path))
+        {
+            var savedReceipt = new
+            {
+                review.CaptureId,
+                receipt.Duplicate,
+                receipt.ReviewId,
+                receipt.UploadedAt
+            };
+            File.WriteAllText(
+                path,
+                JsonSerializer.Serialize(savedReceipt, JsonOptions),
+                new UTF8Encoding(false));
         }
     }
 

@@ -29,7 +29,7 @@ internal static partial class WindowsResultReader
             ["jollerhouse"] = ("Joller House", "joller-house")
         };
 
-    internal static async Task<RecognizedResult?> ReadAsync(
+    internal static async Task<ResultReadOutcome> ReadAsync(
         string screenshotPath,
         DateTimeOffset fallbackCapturedAt)
     {
@@ -50,8 +50,10 @@ internal static partial class WindowsResultReader
             await RecognizeRegionAsync(engine, screenshot, "header", new RectangleF(0.22f, 0.06f, 0.56f, 0.24f)),
             await RecognizeRegionAsync(engine, screenshot, "left-table", new RectangleF(0.05f, 0.20f, 0.50f, 0.42f)),
             await RecognizeRegionAsync(engine, screenshot, "right-table", new RectangleF(0.45f, 0.20f, 0.50f, 0.42f)),
-            await RecognizeRegionAsync(engine, screenshot, "left-player-row", new RectangleF(0.02f, 0.27f, 0.47f, 0.12f)),
-            await RecognizeRegionAsync(engine, screenshot, "right-player-row", new RectangleF(0.51f, 0.27f, 0.47f, 0.12f)),
+            await RecognizeRegionAsync(engine, screenshot, "left-player-row-1", new RectangleF(0.02f, 0.25f, 0.47f, 0.17f)),
+            await RecognizeRegionAsync(engine, screenshot, "left-player-row-2", new RectangleF(0.02f, 0.34f, 0.47f, 0.17f)),
+            await RecognizeRegionAsync(engine, screenshot, "right-player-row-1", new RectangleF(0.51f, 0.25f, 0.47f, 0.17f)),
+            await RecognizeRegionAsync(engine, screenshot, "right-player-row-2", new RectangleF(0.51f, 0.34f, 0.47f, 0.17f)),
             await RecognizeRegionAsync(engine, screenshot, "game-footer", new RectangleF(0, 0.90f, 0.25f, 0.10f)),
             await RecognizeRegionAsync(engine, screenshot, "game", new RectangleF(0, 0.72f, 0.48f, 0.28f))
         };
@@ -73,38 +75,54 @@ internal static partial class WindowsResultReader
         if (game is null)
         {
             DiagnosticLog.Warning($"OCR did not identify a supported game. CaptureId={captureId}");
-            return null;
+            return new ResultReadOutcome(
+                captureId,
+                diagnosticText,
+                null,
+                "game_not_recognized");
         }
 
         var players = passes
-            .Where(pass => pass.Name is "left-player-row" or "right-player-row" or "left-table" or "right-table" or "full")
+            .Where(pass =>
+                pass.Name.Contains("player-row", StringComparison.Ordinal) ||
+                pass.Name is "left-table" or "right-table" or "full")
+            .OrderBy(pass => pass.Name.Contains("player-row", StringComparison.Ordinal) ? 0 : 1)
             .SelectMany(pass => CandidateRows(pass.Result))
             .Select(ParsePlayerLine)
             .Where(player => player is not null)
             .Cast<RecognizedPlayer>()
             .GroupBy(player => player.Name, StringComparer.Ordinal)
             .Select(group => group.First())
+            .Take(4)
             .ToList();
 
         if (players.Count == 0)
         {
             DiagnosticLog.Warning($"OCR did not identify any complete player row. CaptureId={captureId}");
-            return null;
+            return new ResultReadOutcome(
+                captureId,
+                diagnosticText,
+                null,
+                "players_not_recognized");
         }
 
         DiagnosticLog.Info(
             $"OCR recognized result. CaptureId={captureId}; Game={game.Value.Slug}; " +
             $"Players={players.Count}; Session={ParseSessionLabel(fullText) ?? "none"}");
-        return new RecognizedResult
-        {
-            CaptureId = captureId,
-            CapturedAt = ParseDisplayedTimestamp(fullText, fallbackCapturedAt),
-            DeviceName = Environment.MachineName,
-            ExternalSessionLabel = ParseSessionLabel(fullText),
-            GameName = game.Value.Name,
-            GameSlug = game.Value.Slug,
-            Players = players
-        };
+        return new ResultReadOutcome(
+            captureId,
+            diagnosticText,
+            new RecognizedResult
+            {
+                CaptureId = captureId,
+                CapturedAt = ParseDisplayedTimestamp(fullText, fallbackCapturedAt),
+                DeviceName = Environment.MachineName,
+                ExternalSessionLabel = ParseSessionLabel(fullText),
+                GameName = game.Value.Name,
+                GameSlug = game.Value.Slug,
+                Players = players
+            },
+            null);
     }
 
     private static async Task<OcrPass> RecognizeRegionAsync(
@@ -254,7 +272,9 @@ internal static partial class WindowsResultReader
         name = LeadingCrownArtifactPattern().Replace(name, string.Empty).Trim();
         name = DefaultPlayerNamePattern().Replace(name, "Player$1");
         if (name.Length is < 1 or > 80 ||
-            name.Equals("Team", StringComparison.OrdinalIgnoreCase))
+            name.Equals("Team", StringComparison.OrdinalIgnoreCase) ||
+            Regex.IsMatch(name, @"\b\d+(?:[\.,]\d+)?\s*m\b", RegexOptions.IgnoreCase) ||
+            Regex.Matches(name, @"\d+(?:[\.,]\d+)?").Count > 2)
         {
             return null;
         }
@@ -419,7 +439,7 @@ internal static partial class WindowsResultReader
     private static partial Regex LeadingCrownArtifactPattern();
 
     [GeneratedRegex(
-        @"^Player\s+(\d+)$",
+        @"^Player\s*(\d+)$",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex DefaultPlayerNamePattern();
 

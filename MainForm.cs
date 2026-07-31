@@ -17,6 +17,7 @@ internal sealed class MainForm : Form
     private readonly Label _syncStatus = new();
     private readonly Button _monitorButton = new();
     private readonly Button _captureNowButton = new();
+    private readonly UpdateButton _updateButton = new();
     private readonly CheckBox _runAtLogin = new();
     private readonly CheckBox _syncEnabled = new();
     private readonly TextBox _webAppUrl = new();
@@ -102,8 +103,8 @@ internal sealed class MainForm : Form
             Dock = DockStyle.Top,
             ForeColor = Color.FromArgb(90, 94, 112),
             Text =
-                "Screenshots stay local and old files are never deleted. When web sync is enabled, only the recognized " +
-                "game, exact player name, date/time and result statistics are sent to the web app. " +
+                "Screenshots stay local and old files are never deleted. When web sync is enabled, recognized results " +
+                "send structured statistics; screenshots that cannot be read completely upload to private review storage. " +
                 "Closing this window keeps monitoring active in the notification area.",
             MaximumSize = new Size(730, 0),
             Margin = new Padding(2, 14, 2, 0)
@@ -131,7 +132,7 @@ internal sealed class MainForm : Form
 
         layout.Controls.Add(CreateFieldLabel("Automatic sync"), 0, 1);
         _syncEnabled.AutoSize = true;
-        _syncEnabled.Text = "Send recognized statistics after each local capture";
+        _syncEnabled.Text = "Send recognized statistics or unresolved screenshots after each capture";
         _syncEnabled.CheckedChanged += (_, _) =>
         {
             _settings.SyncEnabled = _syncEnabled.Checked;
@@ -317,14 +318,8 @@ internal sealed class MainForm : Form
             await UploadSupportBundleAsync(uploadSupportBundleButton);
         actions.Controls.Add(uploadSupportBundleButton);
 
-        var updateButton = new Button
-        {
-            Text = "Check for updates",
-            AutoSize = true,
-            Padding = new Padding(8, 5, 8, 5)
-        };
-        updateButton.Click += async (_, _) => await CheckForUpdatesAsync(false, updateButton);
-        actions.Controls.Add(updateButton);
+        _updateButton.Click += async (_, _) => await CheckForUpdatesAsync(false, _updateButton);
+        actions.Controls.Add(_updateButton);
 
         return actions;
     }
@@ -753,12 +748,15 @@ internal sealed class MainForm : Form
 
         try
         {
-            var count = await ResultSyncClient.RetryPendingAsync(_settings);
-            if (count > 0)
+            var resultCount = await ResultSyncClient.RetryPendingAsync(_settings);
+            var reviewCount = await ResultSyncClient.RetryPendingReviewsAsync(_settings);
+            if (resultCount > 0 || reviewCount > 0)
             {
                 SafeUi(() =>
                 {
-                    _syncStatus.Text = $"Synced {count} pending result(s).";
+                    _syncStatus.Text = reviewCount > 0
+                        ? $"Synced {resultCount} result(s) and uploaded {reviewCount} review(s)."
+                        : $"Synced {resultCount} pending result(s).";
                     _syncStatus.ForeColor = Color.FromArgb(29, 126, 77);
                 });
             }
@@ -919,13 +917,12 @@ internal sealed class MainForm : Form
         }
     }
 
-    private async Task CheckForUpdatesAsync(bool silentWhenCurrent, Button? sourceButton = null)
+    private async Task CheckForUpdatesAsync(bool silentWhenCurrent, UpdateButton? sourceButton = null)
     {
         SaveWebSyncSettings();
         if (sourceButton is not null)
         {
-            sourceButton.Enabled = false;
-            sourceButton.Text = "Checking…";
+            sourceButton.SetBusy("Checking…");
         }
 
         try
@@ -933,6 +930,7 @@ internal sealed class MainForm : Form
             var result = await UpdateService.CheckAsync(_settings);
             if (!result.IsUpdateAvailable)
             {
+                _updateButton.SetUpdateAvailable(false);
                 if (!silentWhenCurrent)
                 {
                     MessageBox.Show(
@@ -945,6 +943,7 @@ internal sealed class MainForm : Form
                 return;
             }
 
+            _updateButton.SetUpdateAvailable(true);
             ShowFromTray();
             var response = MessageBox.Show(
                 this,
@@ -957,10 +956,7 @@ internal sealed class MainForm : Form
                 return;
             }
 
-            if (sourceButton is not null)
-            {
-                sourceButton.Text = "Downloading…";
-            }
+            _updateButton.SetBusy("Downloading…");
             await UpdateService.DownloadAndInstallAsync(result.Manifest);
             _allowClose = true;
             Close();
@@ -982,8 +978,7 @@ internal sealed class MainForm : Form
         {
             if (sourceButton is not null && !sourceButton.IsDisposed)
             {
-                sourceButton.Enabled = true;
-                sourceButton.Text = "Check for updates";
+                sourceButton.SetUpdateAvailable(_updateButton.UpdateAvailable);
             }
         }
     }
