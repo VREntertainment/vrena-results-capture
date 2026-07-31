@@ -37,6 +37,8 @@ Version 2.1.3 keeps the web app URL and import token saved while settings are lo
 
 Version 2.1.4 adds focused OCR for two player rows on each team (up to four players), automatically uploads incomplete captures to private review storage, and highlights the update button with a moving border light when a new version is available.
 
+Version 2.1.5 recognizes the `MBTowers` label as Mini Block Towers and reads its Hits, Shield, Towers and Total result layout. Hits and Total sync to player statistics while fields that the game does not display remain empty.
+
 ## Online updates
 
 Version 2.1.1 is the last version that needs a normal manual installation. Future versions are checked automatically through the configured web app. Choose **Check for updates** at any time, or accept the update prompt after startup. The application downloads the release over HTTPS, verifies its SHA-256 fingerprint, replaces only the installed executable, and restarts. Settings, screenshots, local result history, pending synchronization, and logs are preserved.

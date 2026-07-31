@@ -18,6 +18,7 @@ internal static partial class WindowsResultReader
         new Dictionary<string, (string Name, string Slug)>(StringComparer.OrdinalIgnoreCase)
         {
             ["lasertag"] = ("Laser Tag", "laser-tag"),
+            ["mbtowers"] = ("Mini Block Towers", "mini-block-towers"),
             ["miniblocktowers"] = ("Mini Block Towers", "mini-block-towers"),
             ["officewar"] = ("Office War", "office-war"),
             ["paintball"] = ("Paintball", "paintball"),
@@ -88,7 +89,7 @@ internal static partial class WindowsResultReader
                 pass.Name is "left-table" or "right-table" or "full")
             .OrderBy(pass => pass.Name.Contains("player-row", StringComparison.Ordinal) ? 0 : 1)
             .SelectMany(pass => CandidateRows(pass.Result))
-            .Select(ParsePlayerLine)
+            .Select(row => ParsePlayerLine(row, game.Value.Slug))
             .Where(player => player is not null)
             .Cast<RecognizedPlayer>()
             .GroupBy(player => player.Name, StringComparer.Ordinal)
@@ -259,28 +260,32 @@ internal static partial class WindowsResultReader
     private static string JoinWords(IEnumerable<OcrWord> words) =>
         string.Join(" ", words.Select(word => word.Text));
 
-    private static RecognizedPlayer? ParsePlayerLine(string source)
+    private static RecognizedPlayer? ParsePlayerLine(string source, string gameSlug)
     {
         var line = Regex.Replace(source, @"\s+", " ").Trim();
+        if (gameSlug.Equals("mini-block-towers", StringComparison.Ordinal))
+        {
+            var miniBlockTowersPlayer = ParseMiniBlockTowersPlayerLine(line);
+            if (miniBlockTowersPlayer is not null)
+            {
+                return miniBlockTowersPlayer;
+            }
+        }
+
         var match = PlayerLinePattern().Match(line);
         if (!match.Success)
         {
             return null;
         }
 
-        var name = match.Groups["name"].Value.Trim(' ', '"', '“', '”');
-        name = LeadingCrownArtifactPattern().Replace(name, string.Empty).Trim();
-        name = DefaultPlayerNamePattern().Replace(name, "Player$1");
-        if (name.Length is < 1 or > 80 ||
-            name.Equals("Team", StringComparison.OrdinalIgnoreCase) ||
-            Regex.IsMatch(name, @"\b\d+(?:[\.,]\d+)?\s*m\b", RegexOptions.IgnoreCase) ||
-            Regex.Matches(name, @"\d+(?:[\.,]\d+)?").Count > 2)
+        var name = CleanPlayerName(match.Groups["name"].Value);
+        if (name is null)
         {
             return null;
         }
 
         if (!TryOcrInteger(match.Groups["hits"].Value, out var hits) ||
-            !int.TryParse(match.Groups["score"].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var score) ||
+            !TryOcrInteger(match.Groups["score"].Value, out var score) ||
             !TryOcrAccuracy(match.Groups["accuracy"].Value, out var accuracy) ||
             !TryDecimal(match.Groups["movement"].Value, out var movement))
         {
@@ -302,9 +307,74 @@ internal static partial class WindowsResultReader
         };
     }
 
+    private static RecognizedPlayer? ParseMiniBlockTowersPlayerLine(string line)
+    {
+        var match = MiniBlockTowersPlayerLinePattern().Match(line);
+        if (!match.Success)
+        {
+            var zeroScoreMatch = MiniBlockTowersZeroScorePlayerLinePattern().Match(line);
+            if (!zeroScoreMatch.Success ||
+                !TryOcrInteger(zeroScoreMatch.Groups["hits"].Value, out var zeroHits) ||
+                !TryOcrInteger(zeroScoreMatch.Groups["shield"].Value, out var zeroShield) ||
+                !TryOcrInteger(zeroScoreMatch.Groups["towers"].Value, out var zeroTowers) ||
+                zeroHits != 0 || zeroShield != 0 || zeroTowers != 0)
+            {
+                return null;
+            }
+
+            var zeroScoreName = CleanPlayerName(zeroScoreMatch.Groups["name"].Value);
+            return zeroScoreName is null
+                ? null
+                : new RecognizedPlayer
+                {
+                    Name = zeroScoreName,
+                    Hits = 0,
+                    AccuracyPercent = null,
+                    MovementMeters = null,
+                    Score = 0
+                };
+        }
+
+        var name = CleanPlayerName(match.Groups["name"].Value);
+        if (name is null ||
+            !TryOcrInteger(match.Groups["hits"].Value, out var hits) ||
+            !TryOcrInteger(match.Groups["shield"].Value, out var shield) ||
+            !TryOcrInteger(match.Groups["towers"].Value, out var towers) ||
+            !TryOcrInteger(match.Groups["score"].Value, out var score) ||
+            hits < 0 || shield < 0 || towers < 0 || score < 0)
+        {
+            return null;
+        }
+
+        return new RecognizedPlayer
+        {
+            Name = name,
+            Hits = hits,
+            AccuracyPercent = null,
+            MovementMeters = null,
+            Score = score
+        };
+    }
+
+    private static string? CleanPlayerName(string value)
+    {
+        var name = value.Trim(' ', '"', '“', '”');
+        name = LeadingCrownArtifactPattern().Replace(name, string.Empty).Trim();
+        name = DefaultPlayerNamePattern().Replace(name, "Player$1");
+        if (name.Length is < 1 or > 80 ||
+            name.Equals("Team", StringComparison.OrdinalIgnoreCase) ||
+            Regex.IsMatch(name, @"\b\d+(?:[\.,]\d+)?\s*m\b", RegexOptions.IgnoreCase) ||
+            Regex.Matches(name, @"(?:^|\s)(?:\d+(?:[\.,]\d+)?|[Oo])(?=\s|$)").Count > 1)
+        {
+            return null;
+        }
+
+        return name;
+    }
+
     private static bool TryDecimal(string value, out double parsed) =>
         double.TryParse(
-            value.Replace(',', '.'),
+            value.Replace('O', '0').Replace('o', '0').Replace(',', '.'),
             NumberStyles.AllowDecimalPoint,
             CultureInfo.InvariantCulture,
             out parsed);
@@ -319,6 +389,8 @@ internal static partial class WindowsResultReader
     private static bool TryOcrAccuracy(string value, out double parsed)
     {
         var normalized = value
+            .Replace('O', '0')
+            .Replace('o', '0')
             .Replace(',', '.')
             .Replace("/0", string.Empty, StringComparison.OrdinalIgnoreCase)
             .Trim();
@@ -429,9 +501,19 @@ internal static partial class WindowsResultReader
     }
 
     [GeneratedRegex(
-        @"^(?<name>.+?)\s+(?<hits>\d+|[Oo])\s+(?<accuracy>\d+(?:[\.,]\d+)?(?:/0)?)\s*(?:%|/0)?\s+(?<movement>\d+(?:[\.,]\d+)?)\s*m\s+(?<score>\d+)\s*$",
+        @"^(?<name>.+?)\s+(?<hits>\d+|[Oo])\s+(?<accuracy>\d+(?:[\.,]\d+)?(?:/0)?|[Oo])\s*(?:%|/0)?\s+(?<movement>\d+(?:[\.,]\d+)?|[Oo])\s*m\s+(?<score>\d+|[Oo])\s*$",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex PlayerLinePattern();
+
+    [GeneratedRegex(
+        @"^(?<name>.+?)\s+(?<hits>\d+|[Oo])\s+(?<shield>\d+|[Oo])\s+(?<towers>\d+|[Oo])\s+(?<score>\d+|[Oo])\s*$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex MiniBlockTowersPlayerLinePattern();
+
+    [GeneratedRegex(
+        @"^(?<name>.+?)\s+(?<hits>\d+|[Oo])\s+(?<shield>\d+|[Oo])\s+(?<towers>\d+|[Oo])\s*$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex MiniBlockTowersZeroScorePlayerLinePattern();
 
     [GeneratedRegex(
         @"^(?:w|v|♛|♚|♕|♔)\s+",
