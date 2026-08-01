@@ -27,6 +27,14 @@ internal static class ResultSyncClient
         var result = readOutcome.Result;
         if (result is null)
         {
+            if (readOutcome.ReviewReason == "game_ignored")
+            {
+                return new ResultProcessingOutcome(
+                    "Screenshot saved. This game is excluded from player records.",
+                    false,
+                    false);
+            }
+
             if (!settings.SyncEnabled)
             {
                 return new ResultProcessingOutcome(

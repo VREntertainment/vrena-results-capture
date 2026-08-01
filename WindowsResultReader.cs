@@ -33,7 +33,7 @@ internal static partial class WindowsResultReader
     private static readonly GameDefinition JollerHouse =
         new("Joller House", "joller-house", GameLayout.Escape);
     private static readonly GameDefinition ZgMarbles =
-        new("ZG Marbles", "zg-marbles", GameLayout.Goals);
+        new("ZG Marbles", "zg-marbles", GameLayout.Ignored);
 
     private static readonly IReadOnlyDictionary<string, GameDefinition> Games =
         new Dictionary<string, GameDefinition>(StringComparer.OrdinalIgnoreCase)
@@ -97,6 +97,20 @@ internal static partial class WindowsResultReader
                 unidentifiedDiagnosticText,
                 null,
                 "game_not_recognized");
+        }
+
+        if (game.Layout is GameLayout.Ignored)
+        {
+            var ignoredDiagnosticText = BuildDiagnosticText(passes);
+            DiagnosticLog.SaveOcrText(captureId, ignoredDiagnosticText);
+            DiagnosticLog.Info(
+                $"OCR skipped a game excluded from player records. CaptureId={captureId}; " +
+                $"Game={game.Slug}");
+            return new ResultReadOutcome(
+                captureId,
+                ignoredDiagnosticText,
+                null,
+                "game_ignored");
         }
 
         if (game.Layout is GameLayout.Escape)
@@ -517,11 +531,6 @@ internal static partial class WindowsResultReader
             }
         }
 
-        if (game.Layout is GameLayout.Goals)
-        {
-            return ParseGoalsPlayerLine(line, game.Slug);
-        }
-
         var match = PlayerLinePattern().Match(line);
         if (!match.Success)
         {
@@ -553,35 +562,6 @@ internal static partial class WindowsResultReader
             Hits = hits,
             AccuracyPercent = accuracy,
             MovementMeters = movement,
-            Score = score
-        };
-    }
-
-    private static RecognizedPlayer? ParseGoalsPlayerLine(string line, string gameSlug)
-    {
-        var match = GoalsPlayerLinePattern().Match(line);
-        if (!match.Success)
-        {
-            return null;
-        }
-
-        var name = CleanPlayerName(match.Groups["name"].Value);
-        if (name is null ||
-            !OcrResultValueParser.TryInteger(match.Groups["hits"].Value, out var hits) ||
-            !OcrResultValueParser.TryAccuracy(match.Groups["accuracy"].Value, out var accuracy) ||
-            !OcrResultValueParser.TryInteger(match.Groups["goals"].Value, out var goals) ||
-            !OcrResultValueParser.TryScore(match.Groups["score"].Value, gameSlug, out var score) ||
-            hits < 0 || accuracy is < 0 or > 100 || goals < 0 || score < 0)
-        {
-            return null;
-        }
-
-        return new RecognizedPlayer
-        {
-            Name = name,
-            Hits = hits,
-            AccuracyPercent = accuracy,
-            MovementMeters = null,
             Score = score
         };
     }
@@ -825,11 +805,6 @@ internal static partial class WindowsResultReader
     private static partial Regex PlayerLinePattern();
 
     [GeneratedRegex(
-        @"^(?<name>.+?)\s+(?<hits>\d+|[Oo])\s+(?<accuracy>\d+(?:[\.,]\d+)?(?:/0)?|[Oo])\s*(?:%|/0)?\s+(?<goals>\d+|[Oo])\s+(?<score>\d+|[Oo])\s*$",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
-    private static partial Regex GoalsPlayerLinePattern();
-
-    [GeneratedRegex(
         @"^[^\p{L}\p{N}]*(?<teamScore>\d+|[Oo])\s+(?<name>[\p{L}\p{M}][\p{L}\p{M}\p{N}'’._ -]{0,79}?)[^\p{L}\p{N}]*$",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex EscapePlayerScoreFirstPattern();
@@ -892,8 +867,8 @@ internal static partial class WindowsResultReader
     {
         StandardShooter,
         MiniBlockTowers,
-        Goals,
-        Escape
+        Escape,
+        Ignored
     }
 
     private enum OcrPreparation
