@@ -38,6 +38,7 @@ internal sealed class MainForm : Form
         StartPosition = FormStartPosition.CenterScreen;
         MinimumSize = new Size(780, 760);
         Size = new Size(860, 820);
+        WindowState = FormWindowState.Maximized;
         BackColor = Color.FromArgb(246, 247, 251);
         Font = new Font("Segoe UI", 10);
 
@@ -396,8 +397,6 @@ internal sealed class MainForm : Form
         if (_settings.StartMonitoringAutomatically && _settings.HasReference)
         {
             StartMonitoring();
-            WindowState = FormWindowState.Minimized;
-            Hide();
         }
 
         if (_settings.IngestToken.Trim().Length >= 24)
@@ -432,7 +431,7 @@ internal sealed class MainForm : Form
     private void ShowFromTray()
     {
         Show();
-        WindowState = FormWindowState.Normal;
+        WindowState = FormWindowState.Maximized;
         Activate();
     }
 
