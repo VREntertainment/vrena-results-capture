@@ -55,6 +55,8 @@ Version 2.1.7 recognizes the venue label `Unspunnen` as Castle Unspunnen so its 
 
 Version 2.1.8 opens the application maximized by default and keeps the maximized window visible when automatic monitoring starts. Opening it again from the notification area also restores it maximized.
 
+Version 2.1.9 uses separate OCR layouts for standard shooters, Mini Block Towers and escape games. It reads up to two player rows per team (four players total), recognizes the venue labels `ShowBattle`, `Joller` and `DGB`, and enhances the faint player-name strips on escape results before reading them. Joller and DGB use the shared `Escape Time` as each detected player's result score. `ZGMarbles` is explicitly excluded: its screenshot remains local and is not uploaded as a player result or review item.
+
 ## Online updates
 
 Version 2.1.1 is the last version that needs a normal manual installation. Future versions are checked automatically through the configured web app. Choose **Check for updates** at any time, or accept the update prompt after startup. The application downloads the release over HTTPS, verifies its SHA-256 fingerprint, replaces only the installed executable, and restarts. Settings, screenshots, local result history, pending synchronization, and logs are preserved.

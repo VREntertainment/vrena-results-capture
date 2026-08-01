@@ -14,21 +14,46 @@ internal static partial class WindowsResultReader
 {
     private const int OcrMaximumDimension = 2400;
 
-    private static readonly IReadOnlyDictionary<string, (string Name, string Slug)> Games =
-        new Dictionary<string, (string Name, string Slug)>(StringComparer.OrdinalIgnoreCase)
+    private static readonly GameDefinition LaserTag =
+        new("Laser Tag", "laser-tag", GameLayout.StandardShooter);
+    private static readonly GameDefinition MiniBlockTowers =
+        new("Mini Block Towers", "mini-block-towers", GameLayout.MiniBlockTowers);
+    private static readonly GameDefinition OfficeWar =
+        new("Office War", "office-war", GameLayout.StandardShooter);
+    private static readonly GameDefinition Paintball =
+        new("Paintball", "paintball", GameLayout.StandardShooter);
+    private static readonly GameDefinition SnowBattle =
+        new("Snow Battle", "snow-battle", GameLayout.StandardShooter);
+    private static readonly GameDefinition CastleUnspunnen =
+        new("Castle Unspunnen", "castle-unspunnen", GameLayout.StandardShooter);
+    private static readonly GameDefinition WildWest =
+        new("Wild West", "wild-west", GameLayout.StandardShooter);
+    private static readonly GameDefinition SecretArc =
+        new("The Secret of the Arc", "arc-of-the-covenant", GameLayout.Escape);
+    private static readonly GameDefinition JollerHouse =
+        new("Joller House", "joller-house", GameLayout.Escape);
+    private static readonly GameDefinition ZgMarbles =
+        new("ZG Marbles", "zg-marbles", GameLayout.Ignored);
+
+    private static readonly IReadOnlyDictionary<string, GameDefinition> Games =
+        new Dictionary<string, GameDefinition>(StringComparer.OrdinalIgnoreCase)
         {
-            ["lasertag"] = ("Laser Tag", "laser-tag"),
-            ["mbtowers"] = ("Mini Block Towers", "mini-block-towers"),
-            ["miniblocktowers"] = ("Mini Block Towers", "mini-block-towers"),
-            ["officewar"] = ("Office War", "office-war"),
-            ["paintball"] = ("Paintball", "paintball"),
-            ["snowbattle"] = ("Snow Battle", "snow-battle"),
-            ["unspunnen"] = ("Castle Unspunnen", "castle-unspunnen"),
-            ["castleunspunnen"] = ("Castle Unspunnen", "castle-unspunnen"),
-            ["wildwest"] = ("WildWest", "wild-west"),
-            ["arcofthecovenant"] = ("The Secret of the Arc", "arc-of-the-covenant"),
-            ["secretarc"] = ("The Secret of the Arc", "arc-of-the-covenant"),
-            ["jollerhouse"] = ("Joller House", "joller-house")
+            ["lasertag"] = LaserTag,
+            ["mbtowers"] = MiniBlockTowers,
+            ["miniblocktowers"] = MiniBlockTowers,
+            ["officewar"] = OfficeWar,
+            ["paintball"] = Paintball,
+            ["showbattle"] = SnowBattle,
+            ["snowbattle"] = SnowBattle,
+            ["unspunnen"] = CastleUnspunnen,
+            ["castleunspunnen"] = CastleUnspunnen,
+            ["wildwest"] = WildWest,
+            ["arcofthecovenant"] = SecretArc,
+            ["dgb"] = SecretArc,
+            ["secretarc"] = SecretArc,
+            ["joller"] = JollerHouse,
+            ["jollerhouse"] = JollerHouse,
+            ["zgmarbles"] = ZgMarbles
         };
 
     internal static async Task<ResultReadOutcome> ReadAsync(
@@ -50,21 +75,9 @@ internal static partial class WindowsResultReader
         {
             await RecognizeRegionAsync(engine, screenshot, "full", new RectangleF(0, 0, 1, 1)),
             await RecognizeRegionAsync(engine, screenshot, "header", new RectangleF(0.22f, 0.06f, 0.56f, 0.24f)),
-            await RecognizeRegionAsync(engine, screenshot, "left-table", new RectangleF(0.05f, 0.20f, 0.50f, 0.42f)),
-            await RecognizeRegionAsync(engine, screenshot, "right-table", new RectangleF(0.45f, 0.20f, 0.50f, 0.42f)),
-            await RecognizeRegionAsync(engine, screenshot, "left-player-row-1", new RectangleF(0.02f, 0.25f, 0.47f, 0.17f)),
-            await RecognizeRegionAsync(engine, screenshot, "left-player-row-2", new RectangleF(0.02f, 0.34f, 0.47f, 0.17f)),
-            await RecognizeRegionAsync(engine, screenshot, "right-player-row-1", new RectangleF(0.51f, 0.25f, 0.47f, 0.17f)),
-            await RecognizeRegionAsync(engine, screenshot, "right-player-row-2", new RectangleF(0.51f, 0.34f, 0.47f, 0.17f)),
             await RecognizeRegionAsync(engine, screenshot, "game-footer", new RectangleF(0, 0.90f, 0.25f, 0.10f)),
             await RecognizeRegionAsync(engine, screenshot, "game", new RectangleF(0, 0.72f, 0.48f, 0.28f))
         };
-
-        var diagnosticText = BuildDiagnosticText(passes);
-        DiagnosticLog.SaveOcrText(captureId, diagnosticText);
-        var fullText = string.Join(
-            Environment.NewLine,
-            passes.Select(pass => pass.Text));
 
         var gameText = string.Join(
             Environment.NewLine,
@@ -76,27 +89,103 @@ internal static partial class WindowsResultReader
         var game = FindGame(gameText);
         if (game is null)
         {
+            var unidentifiedDiagnosticText = BuildDiagnosticText(passes);
+            DiagnosticLog.SaveOcrText(captureId, unidentifiedDiagnosticText);
             DiagnosticLog.Warning($"OCR did not identify a supported game. CaptureId={captureId}");
             return new ResultReadOutcome(
                 captureId,
-                diagnosticText,
+                unidentifiedDiagnosticText,
                 null,
                 "game_not_recognized");
         }
 
-        var players = passes
-            .Where(pass =>
-                pass.Name.Contains("player-row", StringComparison.Ordinal) ||
-                pass.Name is "left-table" or "right-table" or "full")
-            .OrderBy(pass => pass.Name.Contains("player-row", StringComparison.Ordinal) ? 0 : 1)
-            .SelectMany(pass => CandidateRows(pass.Result))
-            .Select(row => ParsePlayerLine(row, game.Value.Slug))
-            .Where(player => player is not null)
-            .Cast<RecognizedPlayer>()
-            .GroupBy(player => player.Name, StringComparer.Ordinal)
-            .Select(group => group.First())
-            .Take(4)
-            .ToList();
+        if (game.Layout is GameLayout.Ignored)
+        {
+            var ignoredDiagnosticText = BuildDiagnosticText(passes);
+            DiagnosticLog.SaveOcrText(captureId, ignoredDiagnosticText);
+            DiagnosticLog.Info(
+                $"OCR skipped a game excluded from player records. CaptureId={captureId}; " +
+                $"Game={game.Slug}");
+            return new ResultReadOutcome(
+                captureId,
+                ignoredDiagnosticText,
+                null,
+                "game_ignored");
+        }
+
+        if (game.Layout is GameLayout.Escape)
+        {
+            passes.Add(await RecognizeRegionAsync(
+                engine,
+                screenshot,
+                "escape-time",
+                new RectangleF(0.25f, 0.26f, 0.50f, 0.42f)));
+            passes.Add(await RecognizeRegionAsync(
+                engine,
+                screenshot,
+                "left-escape-players",
+                new RectangleF(0, 0.405f, 0.27f, 0.09f),
+                OcrPreparation.FaintText));
+            passes.Add(await RecognizeRegionAsync(
+                engine,
+                screenshot,
+                "right-escape-players",
+                new RectangleF(0.73f, 0.405f, 0.27f, 0.09f),
+                OcrPreparation.FaintText));
+        }
+        else
+        {
+            // A single team crop contains both vertically stacked player rows. Keeping
+            // the teams separate prevents spatial OCR from merging left and right names.
+            passes.Add(await RecognizeRegionAsync(
+                engine,
+                screenshot,
+                "left-players",
+                new RectangleF(0.02f, 0.25f, 0.47f, 0.24f)));
+            passes.Add(await RecognizeRegionAsync(
+                engine,
+                screenshot,
+                "right-players",
+                new RectangleF(0.51f, 0.25f, 0.47f, 0.24f)));
+        }
+
+        var diagnosticText = BuildDiagnosticText(passes);
+        DiagnosticLog.SaveOcrText(captureId, diagnosticText);
+        var fullText = string.Join(
+            Environment.NewLine,
+            passes.Select(pass => pass.Text));
+
+        int? escapeDurationSeconds = null;
+        if (game.Layout is GameLayout.Escape)
+        {
+            escapeDurationSeconds = ParseEscapeDurationSeconds(fullText);
+            if (escapeDurationSeconds is null)
+            {
+                DiagnosticLog.Warning($"OCR did not identify the escape time. CaptureId={captureId}");
+                return new ResultReadOutcome(
+                    captureId,
+                    diagnosticText,
+                    null,
+                    "escape_time_not_recognized");
+            }
+        }
+
+        var extraction = ExtractPlayers(passes, game, escapeDurationSeconds);
+        var players = extraction.Players;
+
+        if (extraction.HasConflictingRows || extraction.HasIncompleteRows)
+        {
+            DiagnosticLog.Warning(
+                $"OCR produced incomplete or conflicting player rows. CaptureId={captureId}; " +
+                $"Incomplete={extraction.HasIncompleteRows}; Conflicting={extraction.HasConflictingRows}");
+            return new ResultReadOutcome(
+                captureId,
+                diagnosticText,
+                null,
+                extraction.HasConflictingRows
+                    ? "player_rows_conflict"
+                    : "player_rows_incomplete");
+        }
 
         if (players.Count == 0)
         {
@@ -108,8 +197,19 @@ internal static partial class WindowsResultReader
                 "players_not_recognized");
         }
 
+        if (players.Count > 4)
+        {
+            DiagnosticLog.Warning(
+                $"OCR identified more than four player rows. CaptureId={captureId}; Players={players.Count}");
+            return new ResultReadOutcome(
+                captureId,
+                diagnosticText,
+                null,
+                "player_count_invalid");
+        }
+
         DiagnosticLog.Info(
-            $"OCR recognized result. CaptureId={captureId}; Game={game.Value.Slug}; " +
+            $"OCR recognized result. CaptureId={captureId}; Game={game.Slug}; " +
             $"Players={players.Count}; Session={ParseSessionLabel(fullText) ?? "none"}");
         return new ResultReadOutcome(
             captureId,
@@ -120,8 +220,8 @@ internal static partial class WindowsResultReader
                 CapturedAt = ParseDisplayedTimestamp(fullText, fallbackCapturedAt),
                 DeviceName = Environment.MachineName,
                 ExternalSessionLabel = ParseSessionLabel(fullText),
-                GameName = game.Value.Name,
-                GameSlug = game.Value.Slug,
+                GameName = game.Name,
+                GameSlug = game.Slug,
                 Players = players
             },
             null);
@@ -131,9 +231,10 @@ internal static partial class WindowsResultReader
         OcrEngine engine,
         Bitmap screenshot,
         string name,
-        RectangleF fractionalRegion)
+        RectangleF fractionalRegion,
+        OcrPreparation preparation = OcrPreparation.Default)
     {
-        using var prepared = PrepareRegion(screenshot, fractionalRegion);
+        using var prepared = PrepareRegion(screenshot, fractionalRegion, preparation);
         await using var stream = new MemoryStream();
         prepared.Save(stream, ImageFormat.Png);
         stream.Position = 0;
@@ -150,7 +251,10 @@ internal static partial class WindowsResultReader
         return new OcrPass(name, result, text);
     }
 
-    private static Bitmap PrepareRegion(Bitmap screenshot, RectangleF fractionalRegion)
+    private static Bitmap PrepareRegion(
+        Bitmap screenshot,
+        RectangleF fractionalRegion,
+        OcrPreparation preparation)
     {
         var x = Math.Clamp(
             (int)Math.Floor(screenshot.Width * fractionalRegion.X),
@@ -185,12 +289,48 @@ internal static partial class WindowsResultReader
         graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
         graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
         graphics.SmoothingMode = SmoothingMode.None;
-        graphics.DrawImage(
-            screenshot,
-            new Rectangle(0, 0, targetWidth, targetHeight),
-            new Rectangle(x, y, width, height),
-            GraphicsUnit.Pixel);
+        var destination = new Rectangle(0, 0, targetWidth, targetHeight);
+        var source = new Rectangle(x, y, width, height);
+        if (preparation is OcrPreparation.FaintText)
+        {
+            using var attributes = FaintTextImageAttributes();
+            graphics.DrawImage(
+                screenshot,
+                destination,
+                source.X,
+                source.Y,
+                source.Width,
+                source.Height,
+                GraphicsUnit.Pixel,
+                attributes);
+        }
+        else
+        {
+            graphics.DrawImage(screenshot, destination, source, GraphicsUnit.Pixel);
+        }
+
         return prepared;
+    }
+
+    private static ImageAttributes FaintTextImageAttributes()
+    {
+        // Escape screens render names as very dark text over dark team strips. A high
+        // gamma lifts those shadow details; grayscale and modest contrast make the
+        // result legible to Windows OCR without altering the saved source screenshot.
+        var attributes = new ImageAttributes();
+        attributes.SetGamma(5f, ColorAdjustType.Bitmap);
+        attributes.SetColorMatrix(
+            new ColorMatrix(
+            [
+                [0.4485f, 0.4485f, 0.4485f, 0, 0],
+                [0.8805f, 0.8805f, 0.8805f, 0, 0],
+                [0.1710f, 0.1710f, 0.1710f, 0, 0],
+                [0, 0, 0, 1, 0],
+                [0.10f, 0.10f, 0.10f, 0, 1]
+            ]),
+            ColorMatrixFlag.Default,
+            ColorAdjustType.Bitmap);
+        return attributes;
     }
 
     private static string BuildDiagnosticText(IEnumerable<OcrPass> passes)
@@ -261,10 +401,128 @@ internal static partial class WindowsResultReader
     private static string JoinWords(IEnumerable<OcrWord> words) =>
         string.Join(" ", words.Select(word => word.Text));
 
-    private static RecognizedPlayer? ParsePlayerLine(string source, string gameSlug)
+    private static PlayerExtraction ExtractPlayers(
+        IEnumerable<OcrPass> passes,
+        GameDefinition game,
+        int? escapeDurationSeconds)
+    {
+        var playerPasses = game.Layout is GameLayout.Escape
+            ? passes.Where(pass => pass.Name.Contains("escape-players", StringComparison.Ordinal))
+            : passes.Where(pass => pass.Name is "left-players" or "right-players");
+
+        var candidates = new List<RecognizedPlayer>();
+        var hasIncompleteRows = false;
+        foreach (var row in playerPasses.SelectMany(pass => CandidateRows(pass.Result)))
+        {
+            var player = game.Layout is GameLayout.Escape
+                ? ParseEscapePlayerLine(row, escapeDurationSeconds!.Value)
+                : ParsePlayerLine(row, game);
+            if (player is not null)
+            {
+                candidates.Add(player);
+            }
+            else if (game.Layout is not GameLayout.Escape && LooksLikeIncompletePlayerRow(row))
+            {
+                hasIncompleteRows = true;
+            }
+        }
+
+        var merged = MergeDuplicatePlayers(candidates);
+        return merged with { HasIncompleteRows = hasIncompleteRows };
+    }
+
+    private static bool LooksLikeIncompletePlayerRow(string source)
     {
         var line = Regex.Replace(source, @"\s+", " ").Trim();
-        if (gameSlug.Equals("mini-block-towers", StringComparison.Ordinal))
+        if (Regex.IsMatch(
+                line,
+                @"\b(?:team|hits|accuracy|acc|movement|mov|goals|shield|towers|total)\b",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+        {
+            return false;
+        }
+
+        return Regex.IsMatch(line, @"\p{L}", RegexOptions.CultureInvariant) &&
+            Regex.Matches(line, @"\d+(?:[\.,]\d+)?", RegexOptions.CultureInvariant).Count >= 2;
+    }
+
+    private static PlayerExtraction MergeDuplicatePlayers(
+        IEnumerable<RecognizedPlayer> candidates)
+    {
+        var players = new List<RecognizedPlayer>();
+        var hasConflictingRows = false;
+        foreach (var candidate in candidates)
+        {
+            var candidateIdentity = NormalizedPlayerIdentity(candidate.Name);
+            var identicalNameIndex = players.FindIndex(existing =>
+                candidateIdentity.Equals(
+                    NormalizedPlayerIdentity(existing.Name),
+                    StringComparison.Ordinal));
+            if (identicalNameIndex >= 0)
+            {
+                if (!SameStatistics(players[identicalNameIndex], candidate))
+                {
+                    hasConflictingRows = true;
+                }
+
+                continue;
+            }
+
+            var duplicateIndex = players.FindIndex(existing =>
+            {
+                var existingIdentity = NormalizedPlayerIdentity(existing.Name);
+                return SameStatistics(existing, candidate) &&
+                    Math.Min(candidateIdentity.Length, existingIdentity.Length) >= 5 &&
+                    (candidateIdentity.EndsWith(existingIdentity, StringComparison.Ordinal) ||
+                     existingIdentity.EndsWith(candidateIdentity, StringComparison.Ordinal));
+            });
+
+            if (duplicateIndex < 0)
+            {
+                players.Add(candidate);
+                continue;
+            }
+
+            if (PlayerNameQuality(candidate.Name) > PlayerNameQuality(players[duplicateIndex].Name))
+            {
+                players[duplicateIndex] = candidate;
+            }
+        }
+
+        return new PlayerExtraction(players, hasConflictingRows, false);
+    }
+
+    private static string NormalizedPlayerIdentity(string name) =>
+        Regex.Replace(name.Normalize(NormalizationForm.FormD), @"[^\p{L}\p{N}]", string.Empty)
+            .ToLowerInvariant();
+
+    private static bool SameStatistics(RecognizedPlayer first, RecognizedPlayer second) =>
+        first.Hits == second.Hits &&
+        first.AccuracyPercent == second.AccuracyPercent &&
+        first.MovementMeters == second.MovementMeters &&
+        first.Score == second.Score;
+
+    private static int PlayerNameQuality(string name)
+    {
+        var normalized = Regex.Replace(name, @"\s+", string.Empty);
+        var quality = normalized.Count(char.IsLetterOrDigit);
+        if (Regex.IsMatch(normalized, @"^Player[1-4]$", RegexOptions.IgnoreCase))
+        {
+            quality += 50;
+        }
+
+        if (Regex.IsMatch(name, @"^(?:no|total|team)\b", RegexOptions.IgnoreCase))
+        {
+            quality -= 30;
+        }
+
+        return quality;
+    }
+
+    private static RecognizedPlayer? ParsePlayerLine(string source, GameDefinition game)
+    {
+        var line = Regex.Replace(source, @"\s+", " ").Trim();
+        if (game.Layout is GameLayout.MiniBlockTowers)
         {
             var miniBlockTowersPlayer = ParseMiniBlockTowersPlayerLine(line);
             if (miniBlockTowersPlayer is not null)
@@ -286,7 +544,7 @@ internal static partial class WindowsResultReader
         }
 
         if (!OcrResultValueParser.TryInteger(match.Groups["hits"].Value, out var hits) ||
-            !OcrResultValueParser.TryScore(match.Groups["score"].Value, gameSlug, out var score) ||
+            !OcrResultValueParser.TryScore(match.Groups["score"].Value, game.Slug, out var score) ||
             !OcrResultValueParser.TryAccuracy(match.Groups["accuracy"].Value, out var accuracy) ||
             !OcrResultValueParser.TryDecimal(match.Groups["movement"].Value, out var movement))
         {
@@ -306,6 +564,47 @@ internal static partial class WindowsResultReader
             MovementMeters = movement,
             Score = score
         };
+    }
+
+    private static RecognizedPlayer? ParseEscapePlayerLine(
+        string source,
+        int escapeDurationSeconds)
+    {
+        var line = Regex.Replace(source, @"\s+", " ").Trim();
+        var match = EscapePlayerScoreFirstPattern().Match(line);
+        if (!match.Success)
+        {
+            match = EscapePlayerScoreLastPattern().Match(line);
+        }
+
+        if (match.Success &&
+            (!OcrResultValueParser.TryInteger(match.Groups["teamScore"].Value, out var teamScore) ||
+             teamScore < 0))
+        {
+            return null;
+        }
+
+        if (!match.Success)
+        {
+            match = EscapePlayerNameOnlyPattern().Match(line);
+        }
+
+        if (!match.Success)
+        {
+            return null;
+        }
+
+        var name = CleanPlayerName(match.Groups["name"].Value);
+        return name is null || name.Count(char.IsLetter) < 2
+            ? null
+            : new RecognizedPlayer
+            {
+                Name = name,
+                Hits = 0,
+                AccuracyPercent = null,
+                MovementMeters = null,
+                Score = escapeDurationSeconds
+            };
     }
 
     private static RecognizedPlayer? ParseMiniBlockTowersPlayerLine(string line)
@@ -359,11 +658,17 @@ internal static partial class WindowsResultReader
 
     private static string? CleanPlayerName(string value)
     {
-        var name = value.Trim(' ', '"', '“', '”');
+        var name = value.Trim(' ', '"', '“', '”', ':', ';', '|', '·', '•');
         name = LeadingCrownArtifactPattern().Replace(name, string.Empty).Trim();
+        name = Regex.Replace(
+            name,
+            @"^no\s+(?=Player\s*[1-4]\b)",
+            string.Empty,
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant).Trim();
         name = DefaultPlayerNamePattern().Replace(name, "Player$1");
         if (name.Length is < 1 or > 80 ||
-            name.Equals("Team", StringComparison.OrdinalIgnoreCase) ||
+            Regex.IsMatch(name, @"^(?:team|escape\s*time|not\s+all)\b", RegexOptions.IgnoreCase) ||
+            Regex.IsMatch(name, @"\b(?:hits|acc|mov|goals|shield|towers|total)\b", RegexOptions.IgnoreCase) ||
             Regex.IsMatch(name, @"\b\d+(?:[\.,]\d+)?\s*m\b", RegexOptions.IgnoreCase) ||
             Regex.Matches(name, @"(?:^|\s)(?:\d+(?:[\.,]\d+)?|[Oo])(?=\s|$)").Count > 1)
         {
@@ -373,20 +678,23 @@ internal static partial class WindowsResultReader
         return name;
     }
 
-    private static (string Name, string Slug)? FindGame(string text)
+    private static GameDefinition? FindGame(string text)
     {
         var normalized = Regex.Replace(text, @"[^A-Za-z0-9]", string.Empty);
+        var tokens = Regex.Matches(text, @"[A-Za-z0-9]+")
+            .Select(match => match.Value)
+            .ToList();
         foreach (var game in Games.OrderByDescending(item => item.Key.Length))
         {
-            if (normalized.Contains(game.Key, StringComparison.OrdinalIgnoreCase))
+            var exactMatch = game.Key.Length < 5
+                ? tokens.Contains(game.Key, StringComparer.OrdinalIgnoreCase)
+                : normalized.Contains(game.Key, StringComparison.OrdinalIgnoreCase);
+            if (exactMatch)
             {
                 return game.Value;
             }
         }
 
-        var tokens = Regex.Matches(text, @"[A-Za-z0-9]+")
-            .Select(match => match.Value)
-            .ToList();
         var candidates = new List<string>(tokens);
         for (var index = 0; index < tokens.Count; index++)
         {
@@ -403,6 +711,11 @@ internal static partial class WindowsResultReader
 
         foreach (var game in Games.OrderByDescending(item => item.Key.Length))
         {
+            if (game.Key.Length < 5)
+            {
+                continue;
+            }
+
             var allowedDistance = Math.Max(1, game.Key.Length / 6);
             if (candidates.Any(candidate =>
                     Math.Abs(candidate.Length - game.Key.Length) <= allowedDistance &&
@@ -413,6 +726,20 @@ internal static partial class WindowsResultReader
         }
 
         return null;
+    }
+
+    private static int? ParseEscapeDurationSeconds(string text)
+    {
+        var match = EscapeTimePattern().Match(text);
+        if (!match.Success ||
+            !int.TryParse(match.Groups["minutes"].Value, out var minutes) ||
+            !int.TryParse(match.Groups["seconds"].Value, out var seconds) ||
+            minutes < 0 || seconds is < 0 or > 59)
+        {
+            return null;
+        }
+
+        return checked(minutes * 60 + seconds);
     }
 
     private static int EditDistance(string first, string second)
@@ -478,6 +805,21 @@ internal static partial class WindowsResultReader
     private static partial Regex PlayerLinePattern();
 
     [GeneratedRegex(
+        @"^[^\p{L}\p{N}]*(?<teamScore>\d+|[Oo])\s+(?<name>[\p{L}\p{M}][\p{L}\p{M}\p{N}'’._ -]{0,79}?)[^\p{L}\p{N}]*$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex EscapePlayerScoreFirstPattern();
+
+    [GeneratedRegex(
+        @"^[^\p{L}\p{N}]*(?<name>[\p{L}\p{M}][\p{L}\p{M}\p{N}'’._ -]{0,79}?)\s+(?<teamScore>\d+|[Oo])[^\p{L}\p{N}]*$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex EscapePlayerScoreLastPattern();
+
+    [GeneratedRegex(
+        @"^[^\p{L}\p{N}]*(?<name>[\p{L}\p{M}][\p{L}\p{M}'’._ -]{1,79})[^\p{L}\p{N}]*$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex EscapePlayerNameOnlyPattern();
+
+    [GeneratedRegex(
         @"^(?<name>.+?)\s+(?<hits>\d+|[Oo])\s+(?<shield>\d+|[Oo])\s+(?<towers>\d+|[Oo])\s+(?<score>\d+|[Oo])\s*$",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex MiniBlockTowersPlayerLinePattern();
@@ -507,7 +849,33 @@ internal static partial class WindowsResultReader
         RegexOptions.CultureInvariant)]
     private static partial Regex TimestampPattern();
 
+    [GeneratedRegex(
+        @"Escape\s*Time\s*(?<minutes>\d+):(?<seconds>\d{2})",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex EscapeTimePattern();
+
     private sealed record OcrPass(string Name, OcrResult Result, string Text);
+
+    private sealed record PlayerExtraction(
+        List<RecognizedPlayer> Players,
+        bool HasConflictingRows,
+        bool HasIncompleteRows);
+
+    private sealed record GameDefinition(string Name, string Slug, GameLayout Layout);
+
+    private enum GameLayout
+    {
+        StandardShooter,
+        MiniBlockTowers,
+        Escape,
+        Ignored
+    }
+
+    private enum OcrPreparation
+    {
+        Default,
+        FaintText
+    }
 
     private sealed class SpatialWordRow
     {

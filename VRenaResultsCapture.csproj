@@ -13,9 +13,9 @@
     <Authors>VRena</Authors>
     <Description>Automatically captures VRena results screens to local storage.</Description>
     <ApplicationIcon>VRenaResultsCapture.ico</ApplicationIcon>
-    <Version>2.1.8</Version>
-    <FileVersion>2.1.8.0</FileVersion>
-    <InformationalVersion>2.1.8</InformationalVersion>
+    <Version>2.1.9</Version>
+    <FileVersion>2.1.9.0</FileVersion>
+    <InformationalVersion>2.1.9</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
