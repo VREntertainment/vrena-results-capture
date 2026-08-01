@@ -23,6 +23,7 @@ internal static partial class WindowsResultReader
             ["officewar"] = ("Office War", "office-war"),
             ["paintball"] = ("Paintball", "paintball"),
             ["snowbattle"] = ("Snow Battle", "snow-battle"),
+            ["unspunnen"] = ("Castle Unspunnen", "castle-unspunnen"),
             ["castleunspunnen"] = ("Castle Unspunnen", "castle-unspunnen"),
             ["wildwest"] = ("WildWest", "wild-west"),
             ["arcofthecovenant"] = ("The Secret of the Arc", "arc-of-the-covenant"),
