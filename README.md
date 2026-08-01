@@ -2,6 +2,16 @@
 
 VRena Results Capture is a Windows 10/11 x64 notification-area utility that saves one full-display PNG whenever a configured VR results screen appears. It can also read the game, exact player names, Hits, Accuracy, Movement and Score, then send those structured results to the VRena web app.
 
+## Repository boundary
+
+This repository contains the Windows client and its GitHub releases. The deployed API, authentication secrets, database migrations, and result-review interface remain in the separate [`vrena-booking`](https://github.com/VREntertainment/vrena-booking) repository. The client communicates with that deployed service over HTTPS.
+
+Build the production Windows executable from this repository's root:
+
+```powershell
+dotnet publish VRenaResultsCapture.csproj -c Release -r win-x64 --self-contained true
+```
+
 ## Install
 
 1. Copy `VRenaResultsCapture-Setup.exe` to the Windows computer that displays the VR game server.
