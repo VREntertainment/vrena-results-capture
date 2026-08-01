@@ -11,7 +11,8 @@ internal static class OcrResultValueParser
             "office-war",
             "paintball",
             "snow-battle",
-            "wild-west"
+            "wild-west",
+            "zg-marbles"
         };
 
     internal static bool TryDecimal(string value, out double parsed) =>
