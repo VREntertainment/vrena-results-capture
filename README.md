@@ -51,6 +51,8 @@ Version 2.1.5 recognizes the `MBTowers` label as Mini Block Towers and reads its
 
 Version 2.1.6 corrects the Windows OCR percent-sign artifact (`0/0`) and restores a dropped trailing zero in 10-point shooter scores before syncing player statistics.
 
+Version 2.1.7 recognizes the venue label `Unspunnen` as Castle Unspunnen so its player statistics sync automatically instead of entering the review queue.
+
 ## Online updates
 
 Version 2.1.1 is the last version that needs a normal manual installation. Future versions are checked automatically through the configured web app. Choose **Check for updates** at any time, or accept the update prompt after startup. The application downloads the release over HTTPS, verifies its SHA-256 fingerprint, replaces only the installed executable, and restarts. Settings, screenshots, local result history, pending synchronization, and logs are preserved.
