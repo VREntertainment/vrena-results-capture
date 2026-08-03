@@ -14,6 +14,7 @@ internal static class SettingsStore
         var primary = TryLoad(AppPaths.SettingsFile);
         var backup = TryLoad(AppPaths.SettingsBackupFile);
         var settings = primary ?? backup ?? new CaptureSettings();
+        var shouldPersistSettings = primary is null && backup is not null;
         settings.WebAppBaseUrl ??= string.Empty;
         settings.IngestToken ??= string.Empty;
 
@@ -22,6 +23,12 @@ internal static class SettingsStore
             HasValidWebAppUrl(backup.WebAppBaseUrl))
         {
             settings.WebAppBaseUrl = backup.WebAppBaseUrl ?? string.Empty;
+        }
+
+        if (IsLegacyWebAppUrl(settings.WebAppBaseUrl))
+        {
+            settings.WebAppBaseUrl = CaptureSettings.CanonicalWebAppBaseUrl;
+            shouldPersistSettings = true;
         }
 
         if (settings.IngestToken.Trim().Length < 24 &&
@@ -36,7 +43,7 @@ internal static class SettingsStore
             settings.CaptureDirectory = AppPaths.DefaultCaptureDirectory;
         }
 
-        if (primary is null && backup is not null)
+        if (shouldPersistSettings)
         {
             Save(settings);
         }
@@ -95,4 +102,10 @@ internal static class SettingsStore
     private static bool HasValidWebAppUrl(string? value) =>
         Uri.TryCreate(value?.Trim(), UriKind.Absolute, out var uri) &&
         uri.Scheme == Uri.UriSchemeHttps;
+
+    private static bool IsLegacyWebAppUrl(string? value) =>
+        string.Equals(
+            value?.Trim().TrimEnd('/'),
+            "https://vrena-booking.vercel.app",
+            StringComparison.OrdinalIgnoreCase);
 }

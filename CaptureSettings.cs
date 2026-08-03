@@ -4,6 +4,8 @@ namespace VRenaResultsCapture;
 
 internal sealed class CaptureSettings
 {
+    internal const string CanonicalWebAppBaseUrl = "https://booking.vre-vietnam.com";
+
     public string CaptureDirectory { get; set; } = AppPaths.DefaultCaptureDirectory;
     public string? MonitorDeviceName { get; set; }
     public DetectionRectangle? DetectionArea { get; set; }
@@ -14,7 +16,7 @@ internal sealed class CaptureSettings
     public bool RunAtLogin { get; set; } = true;
     public bool StartMonitoringAutomatically { get; set; } = true;
     public bool SyncEnabled { get; set; }
-    public string WebAppBaseUrl { get; set; } = "https://vrena-booking.vercel.app";
+    public string WebAppBaseUrl { get; set; } = CanonicalWebAppBaseUrl;
     public string IngestToken { get; set; } = string.Empty;
 
     [JsonIgnore]
